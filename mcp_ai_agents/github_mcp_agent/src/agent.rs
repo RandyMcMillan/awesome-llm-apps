@@ -7,37 +7,65 @@ use crate::openai::{LlmClient, Message};
 /// Which GitHub toolset (and tool-name filter) to activate for a subcommand.
 #[derive(Debug, Clone)]
 pub enum ToolFilter {
+    // Multi-toolset — needs client-side filtering
+    Search,
+    // Single-toolset — server filters, client passes all through
+    Actions,
+    CodeQuality,
+    CodeSecurity,
+    Context,
+    Copilot,
+    Dependabot,
+    Discussions,
+    Gists,
+    Git,
     Issues,
+    Labels,
+    Notifications,
+    Orgs,
+    Projects,
     PullRequests,
     Repository,
-    Search,
+    SecretProtection,
+    SecurityAdvisories,
+    Stargazers,
+    Users,
 }
 
 impl ToolFilter {
     /// The `GITHUB_TOOLSETS` value to pass to the MCP server.
     pub fn toolsets(&self) -> &'static str {
         match self {
-            Self::Issues        => "issues",
-            Self::PullRequests  => "pull_requests",
-            Self::Repository    => "repos",
-            Self::Search        => "repos,issues,pull_requests",
+            Self::Search              => "repos,issues,pull_requests",
+            Self::Actions             => "actions",
+            Self::CodeQuality         => "code_quality",
+            Self::CodeSecurity        => "code_security",
+            Self::Context             => "context",
+            Self::Copilot             => "copilot",
+            Self::Dependabot          => "dependabot",
+            Self::Discussions         => "discussions",
+            Self::Gists               => "gists",
+            Self::Git                 => "git",
+            Self::Issues              => "issues",
+            Self::Labels              => "labels",
+            Self::Notifications       => "notifications",
+            Self::Orgs                => "orgs",
+            Self::Projects            => "projects",
+            Self::PullRequests        => "pull_requests",
+            Self::Repository          => "repos",
+            Self::SecretProtection    => "secret_protection",
+            Self::SecurityAdvisories  => "security_advisories",
+            Self::Stargazers          => "stargazers",
+            Self::Users               => "users",
         }
     }
 
     pub fn matches(&self, name: &str) -> bool {
-        // search_* tools are exclusively Search — exclude them from other categories
-        let is_search = name.starts_with("search_");
+        // For Search (multi-toolset load), filter client-side to search_* only.
+        // All single-toolset filters let the server do the filtering.
         match self {
-            Self::Issues        => !is_search
-                                && (name.contains("issue") || name.contains("sub_issue")),
-            Self::PullRequests  => !is_search
-                                && (name.contains("pull_request")
-                                    || name.contains("pending_review")
-                                    || name.starts_with("add_reply")),
-            Self::Repository    => !is_search
-                                && !name.contains("issue")
-                                && !name.contains("pull_request"),
-            Self::Search        => is_search,
+            Self::Search => name.starts_with("search_"),
+            _            => true,
         }
     }
 }
