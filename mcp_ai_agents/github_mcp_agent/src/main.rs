@@ -111,8 +111,12 @@ enum Command {
     Users(QueryArgs),
     /// Docker container TUI (requires --features docker-tui)
     #[cfg(feature = "docker-tui")]
-    #[command(name = "docker-tui")]
-    DockerTui,
+    #[command(name = "docker-tui", disable_help_flag = true)]
+    DockerTui {
+        /// Args forwarded to oxker (use --help to see oxker's own help)
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
     /// List all available MCP tools grouped by category (no token or LLM required)
     Tools,
 }
@@ -143,7 +147,7 @@ impl Command {
             Self::Users(_) => ToolFilter::Users,
             Self::Tools => unreachable!(),
             #[cfg(feature = "docker-tui")]
-            Self::DockerTui => unreachable!(),
+            Self::DockerTui { .. } => unreachable!(),
         }
     }
 
@@ -172,7 +176,7 @@ impl Command {
             | Self::Users(a) => a,
             Self::Tools => unreachable!(),
             #[cfg(feature = "docker-tui")]
-            Self::DockerTui => unreachable!(),
+            Self::DockerTui { .. } => unreachable!(),
         }
     }
 
@@ -188,7 +192,7 @@ impl Command {
             | Self::Stargazers(a) | Self::Users(a) => a.tools.as_ref(),
             Self::Tools => None,
             #[cfg(feature = "docker-tui")]
-            Self::DockerTui => None,
+            Self::DockerTui { .. } => None,
         }
     }
 
@@ -217,7 +221,7 @@ impl Command {
             | Self::Users(a) => a.list_tools,
             Self::Tools => false,
             #[cfg(feature = "docker-tui")]
-            Self::DockerTui => false,
+            Self::DockerTui { .. } => false,
         }
     }
 }
@@ -236,15 +240,15 @@ async fn main() -> Result<()> {
     // Global --list-tools or `tools` subcommand → show all tools
     let is_tools_cmd = matches!(cli.command, Some(Command::Tools));
     #[cfg(feature = "docker-tui")]
-    let is_docker_tui = matches!(cli.command, Some(Command::DockerTui));
+    let is_docker_tui = matches!(cli.command, Some(Command::DockerTui { .. }));
     #[cfg(not(feature = "docker-tui"))]
     let is_docker_tui = false;
 
     if is_docker_tui {
         #[cfg(feature = "docker-tui")]
-        {
+        if let Some(Command::DockerTui { args }) = cli.command {
             oxker::setup_tracing();
-            oxker::run_embedded().await;
+            oxker::run_with_args(&args).await;
             return Ok(());
         }
     }
