@@ -170,15 +170,12 @@ pub async fn start_mcp_server(docker: &Path, github_token: &str) -> Result<()> {
         .args([
             "run",
             "-d",
+            "-i",
             "--name",
             CONTAINER_NAME,
             "-e",
             &format!("GITHUB_PERSONAL_ACCESS_TOKEN={github_token}"),
-            "--entrypoint",
-            "tail",
             IMAGE,
-            "-f",
-            "/dev/null",
         ])
         .status()
         .await

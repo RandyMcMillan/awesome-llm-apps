@@ -247,7 +247,13 @@ async fn main() -> Result<()> {
     if is_docker_tui {
         #[cfg(feature = "docker-tui")]
         if let Some(Command::DockerTui { args }) = cli.command {
-            let is_help = args.iter().any(|a| a == "--help" || a == "-h");
+            let is_help    = args.iter().any(|a| a == "--help"    || a == "-h");
+            let is_version = args.iter().any(|a| a == "--version" || a == "-V");
+            if is_version {
+                println!("github-mcp-agent {} (docker-tui / oxker {})",
+                    env!("CARGO_PKG_VERSION"), "0.13.2");
+                return Ok(());
+            }
             if is_help {
                 let sep = "─".repeat(72);
                 let cname = github_mcp_agent::docker::CONTAINER_NAME;
