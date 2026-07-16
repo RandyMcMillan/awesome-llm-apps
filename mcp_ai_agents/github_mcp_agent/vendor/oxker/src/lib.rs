@@ -142,7 +142,8 @@ pub async fn run() {
 
 /// Run the TUI embedded inside another binary — uses default config, does NOT parse process args.
 pub async fn run_embedded() {
-    let config = Config::from(&config::parse_args::Args::default());
+    let mut config = Config::from(&config::parse_args::Args::default());
+    config.gui = true; // Args::default() sets gui=true meaning "disable gui"; flip it for embedded use
     run_with_config(config).await;
 }
 
