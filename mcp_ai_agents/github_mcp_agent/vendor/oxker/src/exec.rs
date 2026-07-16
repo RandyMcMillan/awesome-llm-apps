@@ -39,8 +39,12 @@ mod command {
     pub const PWD: &str = "pwd";
     pub const DOCKER: &str = "docker";
     pub const EXEC: &str = "exec";
+    pub const RUN: &str = "run";
     pub const SH: &str = "sh";
     pub const IT: &str = "-it";
+    pub const RM: &str = "--rm";
+    /// Sidecar image used when the target container has no shell (e.g. distroless)
+    pub const SIDECAR_IMAGE: &str = "alpine";
 }
 
 // STILL BROKEN
@@ -133,6 +137,9 @@ pub enum ExecMode {
     Internal((Arc<ContainerId>, Arc<Docker>)),
     // use the external `docker-cli`
     External(Arc<ContainerId>),
+    /// Target container has no shell (distroless/scratch); spawn an alpine sidecar
+    /// sharing the target's network and PID namespaces.
+    Sidecar(Arc<String>),
 }
 
 impl ExecMode {
@@ -147,7 +154,7 @@ impl ExecMode {
         let use_cli = app_data.lock().config.use_cli;
         let container = app_data.lock().get_selected_container_id_state_name();
 
-        if let Some((id, state, _)) = container
+        if let Some((id, state, name)) = container
             && [
                 State::Running(RunningState::Healthy),
                 State::Running(RunningState::Unhealthy),
@@ -180,8 +187,14 @@ impl ExecMode {
                 .output()
                 && let Ok(output) = String::from_utf8(output.stdout)
                 && !output.starts_with(OCI_ERROR)
+                && !output.is_empty()
             {
                 return Some(Self::External(Arc::new(id)));
+            }
+
+            // Container has no shell (distroless/scratch): fall back to alpine sidecar
+            if tty_readable() {
+                return Some(Self::Sidecar(Arc::new(name)));
             }
         }
         None
@@ -201,6 +214,34 @@ impl ExecMode {
             child.wait().ok();
             if child.kill().is_err() {
                 std::process::exit(1)
+            }
+        }
+    }
+
+    /// Spawn an alpine sidecar sharing the target container's network and PID namespaces.
+    /// Used for distroless/scratch containers that have no shell of their own.
+    fn exec_sidecar(container_name: &str) {
+        let mut stdout = std::io::stdout();
+        stdout.write_all(CURSOR_POS.as_bytes()).ok();
+        stdout.flush().ok();
+        let network_flag = format!("--network=container:{container_name}");
+        let pid_flag    = format!("--pid=container:{container_name}");
+        if let Ok(mut child) = std::process::Command::new(command::DOCKER)
+            .args([
+                command::RUN, command::RM, command::IT,
+                &network_flag,
+                &pid_flag,
+                command::SIDECAR_IMAGE,
+                command::SH,
+            ])
+            .stdin(std::process::Stdio::inherit())
+            .stdout(std::process::Stdio::inherit())
+            .stderr(std::process::Stdio::inherit())
+            .spawn()
+        {
+            child.wait().ok();
+            if child.kill().is_err() {
+                std::process::exit(1);
             }
         }
     }
@@ -289,7 +330,7 @@ impl ExecMode {
     // TODO eventually use async channels here!
     fn internal_cleanup(&self) -> Result<(), AppError> {
         match self {
-            Self::External(_) => Ok(()),
+            Self::External(_) | Self::Sidecar(_) => Ok(()),
             Self::Internal(_) => {
                 let waiting = Arc::new(AtomicBool::new(true));
                 let waiting_thread = Arc::clone(&waiting);
@@ -351,6 +392,11 @@ impl ExecMode {
             }
 
             Self::Internal((id, docker)) => self.exec_internal(id, docker, tty_size).await,
+
+            Self::Sidecar(name) => {
+                Self::exec_sidecar(name);
+                Ok(())
+            }
         }
     }
 }
