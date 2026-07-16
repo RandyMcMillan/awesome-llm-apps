@@ -45,7 +45,7 @@ struct Cli {
 /// Shared args for all query subcommands
 #[derive(Args)]
 struct QueryArgs {
-    /// Repository to analyze (format: owner/repo)
+    /// Repository (owner/repo) — required for most toolsets
     #[arg(short, long, default_value = "gnostr-org/gnostr")]
     repo: String,
 
@@ -60,22 +60,113 @@ struct QueryArgs {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Query and explore GitHub issues
+    /// GitHub Actions workflows and CI/CD operations
+    Actions(QueryArgs),
+    /// Code quality tools
+    #[command(name = "code-quality")]
+    CodeQuality(QueryArgs),
+    /// Code security — GitHub Code Scanning
+    #[command(name = "code-security")]
+    CodeSecurity(QueryArgs),
+    /// Current user and GitHub context (strongly recommended for context)
+    Context(QueryArgs),
+    /// Copilot related tools
+    Copilot(QueryArgs),
+    /// Dependabot tools
+    Dependabot(QueryArgs),
+    /// GitHub Discussions
+    Discussions(QueryArgs),
+    /// GitHub Gists
+    Gists(QueryArgs),
+    /// Low-level Git API operations
+    Git(QueryArgs),
+    /// GitHub Issues
     Issues(QueryArgs),
-
-    /// Query and explore pull requests
+    /// GitHub Labels
+    Labels(QueryArgs),
+    /// GitHub Notifications
+    Notifications(QueryArgs),
+    /// GitHub Organizations
+    Orgs(QueryArgs),
+    /// GitHub Projects
+    Projects(QueryArgs),
+    /// GitHub Pull Requests
     #[command(name = "prs")]
     PullRequests(QueryArgs),
-
-    /// Query repository info: files, branches, commits, releases, tags
+    /// Repository files, branches, commits, releases, tags
     #[command(name = "repo")]
     Repository(QueryArgs),
-
-    /// Search code, commits, issues, or repositories
+    /// Secret protection — GitHub Secret Scanning
+    #[command(name = "secret-protection")]
+    SecretProtection(QueryArgs),
+    /// Security advisories
+    #[command(name = "security-advisories")]
+    SecurityAdvisories(QueryArgs),
+    /// Search code, commits, issues, PRs, or repositories
     Search(QueryArgs),
-
+    /// GitHub Stargazers
+    Stargazers(QueryArgs),
+    /// GitHub Users
+    Users(QueryArgs),
     /// List all available MCP tools grouped by category (no token or LLM required)
     Tools,
+}
+
+impl Command {
+    fn filter(&self) -> ToolFilter {
+        match self {
+            Self::Actions(_)            => ToolFilter::Actions,
+            Self::CodeQuality(_)        => ToolFilter::CodeQuality,
+            Self::CodeSecurity(_)       => ToolFilter::CodeSecurity,
+            Self::Context(_)            => ToolFilter::Context,
+            Self::Copilot(_)            => ToolFilter::Copilot,
+            Self::Dependabot(_)         => ToolFilter::Dependabot,
+            Self::Discussions(_)        => ToolFilter::Discussions,
+            Self::Gists(_)              => ToolFilter::Gists,
+            Self::Git(_)                => ToolFilter::Git,
+            Self::Issues(_)             => ToolFilter::Issues,
+            Self::Labels(_)             => ToolFilter::Labels,
+            Self::Notifications(_)      => ToolFilter::Notifications,
+            Self::Orgs(_)               => ToolFilter::Orgs,
+            Self::Projects(_)           => ToolFilter::Projects,
+            Self::PullRequests(_)       => ToolFilter::PullRequests,
+            Self::Repository(_)         => ToolFilter::Repository,
+            Self::SecretProtection(_)   => ToolFilter::SecretProtection,
+            Self::SecurityAdvisories(_) => ToolFilter::SecurityAdvisories,
+            Self::Search(_)             => ToolFilter::Search,
+            Self::Stargazers(_)         => ToolFilter::Stargazers,
+            Self::Users(_)              => ToolFilter::Users,
+            Self::Tools                 => unreachable!(),
+        }
+    }
+
+    fn args(self) -> QueryArgs {
+        match self {
+            Self::Actions(a) | Self::CodeQuality(a) | Self::CodeSecurity(a)
+            | Self::Context(a) | Self::Copilot(a) | Self::Dependabot(a)
+            | Self::Discussions(a) | Self::Gists(a) | Self::Git(a)
+            | Self::Issues(a) | Self::Labels(a) | Self::Notifications(a)
+            | Self::Orgs(a) | Self::Projects(a) | Self::PullRequests(a)
+            | Self::Repository(a) | Self::SecretProtection(a)
+            | Self::SecurityAdvisories(a) | Self::Search(a)
+            | Self::Stargazers(a) | Self::Users(a) => a,
+            Self::Tools => unreachable!(),
+        }
+    }
+
+    fn list_tools_flag(&self) -> bool {
+        match self {
+            Self::Actions(a) | Self::CodeQuality(a) | Self::CodeSecurity(a)
+            | Self::Context(a) | Self::Copilot(a) | Self::Dependabot(a)
+            | Self::Discussions(a) | Self::Gists(a) | Self::Git(a)
+            | Self::Issues(a) | Self::Labels(a) | Self::Notifications(a)
+            | Self::Orgs(a) | Self::Projects(a) | Self::PullRequests(a)
+            | Self::Repository(a) | Self::SecretProtection(a)
+            | Self::SecurityAdvisories(a) | Self::Search(a)
+            | Self::Stargazers(a) | Self::Users(a) => a.list_tools,
+            Self::Tools => false,
+        }
+    }
 }
 
 #[tokio::main]
@@ -100,21 +191,8 @@ async fn main() -> Result<()> {
     };
 
     // Subcommand --list-tools → show filtered tools for that category
-    let sub_list = match &cmd {
-        Command::Issues(a) | Command::PullRequests(a)
-        | Command::Repository(a) | Command::Search(a) => a.list_tools,
-        _ => false,
-    };
-
-    let filter = match &cmd {
-        Command::Issues(_)        => ToolFilter::Issues,
-        Command::PullRequests(_)  => ToolFilter::PullRequests,
-        Command::Repository(_)    => ToolFilter::Repository,
-        Command::Search(_)        => ToolFilter::Search,
-        Command::Tools            => unreachable!(),
-    };
-
-    if sub_list {
+    if cmd.list_tools_flag() {
+        let filter = cmd.filter();
         return list_tools(&github_token, Some(&filter)).await;
     }
 
@@ -127,11 +205,8 @@ async fn main() -> Result<()> {
     let model      = cli.model.or_else(|| env::var("LLM_MODEL").ok());
     let llm        = resolve_llm(openai_key, llm_url, model, &github_token).await?;
 
-    let args = match cmd {
-        Command::Issues(a) | Command::PullRequests(a)
-        | Command::Repository(a) | Command::Search(a) => a,
-        Command::Tools => unreachable!(),
-    };
+    let filter = cmd.filter();
+    let args   = cmd.args();
 
     let query = match args.query {
         Some(q) => q,
@@ -160,14 +235,32 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-/// Print tools. If `filter` is Some, show only tools matching that category.
+/// Print tools. Pass `filter` to show only tools matching that category.
 async fn list_tools(github_token: &str, filter: Option<&ToolFilter>) -> Result<()> {
-    let toolsets = filter.map(|f| f.toolsets()).unwrap_or("repos,issues,pull_requests");
+    let toolsets = filter.map(|f| f.toolsets()).unwrap_or("all");
+
     let label = filter.map(|f| match f {
-        ToolFilter::Issues       => "Issues",
-        ToolFilter::PullRequests => "Pull Requests",
-        ToolFilter::Repository   => "Repository",
-        ToolFilter::Search       => "Search",
+        ToolFilter::Actions            => "Actions",
+        ToolFilter::CodeQuality        => "Code Quality",
+        ToolFilter::CodeSecurity       => "Code Security",
+        ToolFilter::Context            => "Context",
+        ToolFilter::Copilot            => "Copilot",
+        ToolFilter::Dependabot         => "Dependabot",
+        ToolFilter::Discussions        => "Discussions",
+        ToolFilter::Gists              => "Gists",
+        ToolFilter::Git                => "Git",
+        ToolFilter::Issues             => "Issues",
+        ToolFilter::Labels             => "Labels",
+        ToolFilter::Notifications      => "Notifications",
+        ToolFilter::Orgs               => "Organizations",
+        ToolFilter::Projects           => "Projects",
+        ToolFilter::PullRequests       => "Pull Requests",
+        ToolFilter::Repository         => "Repository",
+        ToolFilter::SecretProtection   => "Secret Protection",
+        ToolFilter::SecurityAdvisories => "Security Advisories",
+        ToolFilter::Search             => "Search",
+        ToolFilter::Stargazers         => "Stargazers",
+        ToolFilter::Users              => "Users",
     });
 
     println!("🔌 Connecting to GitHub MCP server via Docker…");
@@ -188,28 +281,42 @@ async fn list_tools(github_token: &str, filter: Option<&ToolFilter>) -> Result<(
         for t in &tools {
             let raw = t.description.as_deref().unwrap_or("").lines().next().unwrap_or("");
             let desc = if raw.len() > 57 { format!("{}…", &raw[..57]) } else { raw.to_string() };
-            println!("  {:<38} {}", t.name, desc);
+            println!("  {:<42} {}", t.name, desc);
         }
         println!("\n{sep}");
         return Ok(());
     }
 
-    // All-tools grouped listing
-    let categories: &[(&str, &[&str])] = &[
-        ("Issues",        &["issue", "sub_issue"]),
-        ("Pull Requests", &["pull_request", "add_comment_to_pending", "add_reply"]),
-        ("Repository",    &["create_repo", "fork", "list_branch", "list_commit",
-                             "list_release", "list_tag", "list_repository",
-                             "get_commit", "get_file", "get_label", "get_latest",
-                             "get_release", "get_tag", "create_branch",
-                             "create_or_update", "delete_file", "push_files"]),
-        ("Search",        &["search_"]),
+    // All-tools grouped listing (GITHUB_TOOLSETS=all)
+    println!("\n📋 {} tools\n{sep}", tools.len());
+    // Group by common name patterns
+    let groups: &[(&str, &[&str])] = &[
+        ("Actions",             &["workflow", "run", "job", "artifact", "runner", "secret", "variable", "cache"]),
+        ("Code Quality",        &["code_quality", "autofix"]),
+        ("Code Security",       &["code_scanning", "alert"]),
+        ("Context",             &["get_me", "get_github_context"]),
+        ("Copilot",             &["copilot"]),
+        ("Dependabot",          &["dependabot"]),
+        ("Discussions",         &["discussion"]),
+        ("Gists",               &["gist"]),
+        ("Git",                 &["git_"]),
+        ("Issues",              &["issue", "sub_issue"]),
+        ("Labels",              &["label"]),
+        ("Notifications",       &["notification", "thread"]),
+        ("Organizations",       &["org", "team", "member"]),
+        ("Projects",            &["project"]),
+        ("Pull Requests",       &["pull_request", "pending_review", "add_reply"]),
+        ("Repository",          &["repo", "branch", "commit", "release", "tag",
+                                   "file", "fork", "push_files"]),
+        ("Search",              &["search_"]),
+        ("Secret Protection",   &["secret_scanning"]),
+        ("Security Advisories", &["advisory", "cve"]),
+        ("Stargazers",          &["star"]),
+        ("Users",               &["user", "follow", "block"]),
     ];
 
     let mut assigned: std::collections::HashSet<&str> = Default::default();
-    println!("\n📋 {} tools\n{sep}", tools.len());
-
-    for (cat_label, prefixes) in categories {
+    for (cat_label, prefixes) in groups {
         let group: Vec<_> = tools
             .iter()
             .filter(|t| {
@@ -225,7 +332,7 @@ async fn list_tools(github_token: &str, filter: Option<&ToolFilter>) -> Result<(
         for t in group {
             let raw = t.description.as_deref().unwrap_or("").lines().next().unwrap_or("");
             let desc = if raw.len() > 57 { format!("{}…", &raw[..57]) } else { raw.to_string() };
-            println!("  {:<38} {}", t.name, desc);
+            println!("  {:<42} {}", t.name, desc);
         }
         println!();
     }
@@ -237,7 +344,7 @@ async fn list_tools(github_token: &str, filter: Option<&ToolFilter>) -> Result<(
         for t in rest {
             let raw = t.description.as_deref().unwrap_or("").lines().next().unwrap_or("");
             let desc = if raw.len() > 57 { format!("{}…", &raw[..57]) } else { raw.to_string() };
-            println!("  {:<38} {}", t.name, desc);
+            println!("  {:<42} {}", t.name, desc);
         }
         println!();
     }
