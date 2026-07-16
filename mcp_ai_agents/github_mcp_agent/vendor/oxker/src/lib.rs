@@ -186,6 +186,7 @@ pub mod tests {
             gui: true,
             host: None,
             in_container: false,
+            initial_filter: None,
             keymap: Keymap::new(),
             log_search_case_sensitive: true,
             raw_logs: false,
