@@ -288,6 +288,13 @@ async fn main() -> Result<()> {
                      \x20 {:<36} Force use of docker CLI when execing into containers\n\
                      \x20 {:<36} Print this help\n\
                      \x20 {:<36} Print version\n\
+                     \n\
+                     TUI keybindings:\n\
+                     {sep}\n\
+                     \x20 {:<36} Exec / log into selected container\n\
+                     \x20 {:<36} Quit\n\
+                     \x20 {:<36} Filter containers\n\
+                     \x20 {:<36} Inspect container details\n\
                      {sep}",
                     "--github-token <TOKEN>",
                     "",
@@ -305,6 +312,10 @@ async fn main() -> Result<()> {
                     "--use-cli",
                     "-h, --help",
                     "-V, --version",
+                    "t / T",
+                    "q",
+                    "/",
+                    "i",
                 );
                 return Ok(());
             }
