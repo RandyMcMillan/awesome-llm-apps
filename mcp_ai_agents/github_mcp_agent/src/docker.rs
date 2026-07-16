@@ -6,6 +6,7 @@ use std::{
 use tokio::process::Command;
 
 pub const IMAGE: &str = "ghcr.io/github/github-mcp-server";
+pub const CONTAINER_NAME: &str = "github-mcp-server";
 
 /// Locate the `docker` binary cross-platform (PATH + known fallback locations).
 pub fn find_docker() -> Option<PathBuf> {
