@@ -135,3 +135,58 @@ async fn ensure_image(docker: &Path) -> Result<()> {
     println!("✅ Image ready");
     Ok(())
 }
+
+/// Check whether a container with `CONTAINER_NAME` is already running.
+async fn container_running(docker: &Path) -> bool {
+    Command::new(docker)
+        .args(["inspect", "--format", "{{.State.Running}}", CONTAINER_NAME])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .output()
+        .await
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim() == "true")
+        .unwrap_or(false)
+}
+
+/// Start the GitHub MCP server container in the background so it is visible in the docker TUI.
+/// Uses `tail -f /dev/null` as entrypoint to keep it alive.
+/// No-ops if a container named `CONTAINER_NAME` already exists and is running.
+pub async fn start_mcp_server(docker: &Path, github_token: &str) -> Result<()> {
+    if container_running(docker).await {
+        println!("✅ Container '{CONTAINER_NAME}' already running");
+        return Ok(());
+    }
+
+    // Remove any stopped container with the same name so we can start fresh.
+    let _ = Command::new(docker)
+        .args(["rm", "-f", CONTAINER_NAME])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .await;
+
+    println!("🚀 Starting container '{CONTAINER_NAME}' …");
+    let status = Command::new(docker)
+        .args([
+            "run",
+            "-d",
+            "--name",
+            CONTAINER_NAME,
+            "-e",
+            &format!("GITHUB_PERSONAL_ACCESS_TOKEN={github_token}"),
+            "--entrypoint",
+            "tail",
+            IMAGE,
+            "-f",
+            "/dev/null",
+        ])
+        .status()
+        .await
+        .context("Failed to start MCP server container")?;
+
+    if !status.success() {
+        bail!("Could not start container '{CONTAINER_NAME}'");
+    }
+    println!("✅ Container '{CONTAINER_NAME}' started");
+    Ok(())
+}
