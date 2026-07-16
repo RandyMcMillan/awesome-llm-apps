@@ -58,8 +58,9 @@ struct QueryArgs {
     list_tools: bool,
 
     /// Restrict to specific tools (comma-separated, validated against --list-tools)
-    #[arg(long, value_delimiter = ',')]
-    tools: Vec<String>,
+    /// Pass without a value to list available tools for this subcommand.
+    #[arg(long, num_args(0..), value_delimiter = ',')]
+    tools: Option<Vec<String>>,
 }
 
 #[derive(Subcommand)]
@@ -171,6 +172,20 @@ impl Command {
         }
     }
 
+    fn tools_flag(&self) -> Option<&Vec<String>> {
+        match self {
+            Self::Actions(a) | Self::CodeQuality(a) | Self::CodeSecurity(a)
+            | Self::Context(a) | Self::Copilot(a) | Self::Dependabot(a)
+            | Self::Discussions(a) | Self::Gists(a) | Self::Git(a)
+            | Self::Issues(a) | Self::Labels(a) | Self::Notifications(a)
+            | Self::Orgs(a) | Self::Projects(a) | Self::PullRequests(a)
+            | Self::Repository(a) | Self::SecretProtection(a)
+            | Self::SecurityAdvisories(a) | Self::Search(a)
+            | Self::Stargazers(a) | Self::Users(a) => a.tools.as_ref(),
+            Self::Tools => None,
+        }
+    }
+
     fn list_tools_flag(&self) -> bool {
         match self {
             Self::Actions(a)
@@ -220,8 +235,8 @@ async fn main() -> Result<()> {
         bail!("A subcommand is required. Use --help for usage.");
     };
 
-    // Subcommand --list-tools → show filtered tools for that category
-    if cmd.list_tools_flag() {
+    // Subcommand --list-tools OR bare --tools (no values) → show filtered tools
+    if cmd.list_tools_flag() || matches!(cmd.tools_flag(), Some(t) if t.is_empty()) {
         let filter = cmd.filter();
         return list_tools(&github_token, Some(&filter)).await;
     }
@@ -259,7 +274,8 @@ async fn main() -> Result<()> {
     println!("Query      : {}", full_query);
     println!("{}", "─".repeat(60));
 
-    let result = agent::run(&full_query, &github_token, llm, filter, &args.tools).await?;
+    let explicit_tools = args.tools.as_deref().unwrap_or(&[]);
+    let result = agent::run(&full_query, &github_token, llm, filter, explicit_tools).await?;
     println!("\n### Results\n{}", result);
 
     Ok(())
