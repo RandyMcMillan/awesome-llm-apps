@@ -56,7 +56,11 @@ impl McpClient {
         let stdout = child.stdout.take().context("Failed to get child stdout")?;
         let lines = BufReader::new(stdout).lines();
 
-        let mut client = Self { child, stdin, lines };
+        let mut client = Self {
+            child,
+            stdin,
+            lines,
+        };
         client.initialize().await?;
         Ok(client)
     }
@@ -78,8 +82,8 @@ impl McpClient {
                 continue;
             }
 
-            let resp: Value = serde_json::from_str(&line)
-                .context("Failed to parse MCP server response")?;
+            let resp: Value =
+                serde_json::from_str(&line).context("Failed to parse MCP server response")?;
 
             if resp.get("id").is_none() {
                 // notification — skip
@@ -130,7 +134,10 @@ impl McpClient {
 
     pub async fn call_tool(&mut self, name: &str, arguments: Value) -> Result<String> {
         let result = self
-            .send_request("tools/call", json!({ "name": name, "arguments": arguments }))
+            .send_request(
+                "tools/call",
+                json!({ "name": name, "arguments": arguments }),
+            )
             .await?;
 
         // Extract text content blocks from the response

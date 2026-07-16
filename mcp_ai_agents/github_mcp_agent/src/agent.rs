@@ -36,27 +36,27 @@ impl ToolFilter {
     /// The `GITHUB_TOOLSETS` value to pass to the MCP server.
     pub fn toolsets(&self) -> &'static str {
         match self {
-            Self::Search              => "repos,issues,pull_requests",
-            Self::Actions             => "actions",
-            Self::CodeQuality         => "code_quality",
-            Self::CodeSecurity        => "code_security",
-            Self::Context             => "context",
-            Self::Copilot             => "copilot",
-            Self::Dependabot          => "dependabot",
-            Self::Discussions         => "discussions",
-            Self::Gists               => "gists",
-            Self::Git                 => "git",
-            Self::Issues              => "issues",
-            Self::Labels              => "labels",
-            Self::Notifications       => "notifications",
-            Self::Orgs                => "orgs",
-            Self::Projects            => "projects",
-            Self::PullRequests        => "pull_requests",
-            Self::Repository          => "repos",
-            Self::SecretProtection    => "secret_protection",
-            Self::SecurityAdvisories  => "security_advisories",
-            Self::Stargazers          => "stargazers",
-            Self::Users               => "users",
+            Self::Search => "repos,issues,pull_requests",
+            Self::Actions => "actions",
+            Self::CodeQuality => "code_quality",
+            Self::CodeSecurity => "code_security",
+            Self::Context => "context",
+            Self::Copilot => "copilot",
+            Self::Dependabot => "dependabot",
+            Self::Discussions => "discussions",
+            Self::Gists => "gists",
+            Self::Git => "git",
+            Self::Issues => "issues",
+            Self::Labels => "labels",
+            Self::Notifications => "notifications",
+            Self::Orgs => "orgs",
+            Self::Projects => "projects",
+            Self::PullRequests => "pull_requests",
+            Self::Repository => "repos",
+            Self::SecretProtection => "secret_protection",
+            Self::SecurityAdvisories => "security_advisories",
+            Self::Stargazers => "stargazers",
+            Self::Users => "users",
         }
     }
 
@@ -65,7 +65,7 @@ impl ToolFilter {
         // All single-toolset filters let the server do the filtering.
         match self {
             Self::Search => name.starts_with("search_"),
-            _            => true,
+            _ => true,
         }
     }
 }
@@ -107,13 +107,7 @@ fn slim_schema(schema: &Value) -> Value {
 async fn select_tools<'a>(query: &str, tools: &'a [Tool], llm: &LlmClient) -> Vec<&'a Tool> {
     let catalogue: Vec<String> = tools
         .iter()
-        .map(|t| {
-            format!(
-                "- {}: {}",
-                t.name,
-                t.description.as_deref().unwrap_or("")
-            )
-        })
+        .map(|t| format!("- {}: {}", t.name, t.description.as_deref().unwrap_or("")))
         .collect();
 
     let prompt = format!(
@@ -144,7 +138,11 @@ async fn select_tools<'a>(query: &str, tools: &'a [Tool], llm: &LlmClient) -> Ve
                 println!(
                     "🎯 Selected {} relevant tools: {}",
                     filtered.len(),
-                    filtered.iter().map(|t| t.name.as_str()).collect::<Vec<_>>().join(", ")
+                    filtered
+                        .iter()
+                        .map(|t| t.name.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", ")
                 );
                 return filtered;
             }
@@ -169,8 +167,15 @@ pub async fn run(
     println!("✅ {} tools loaded", all_tools.len());
 
     // Pre-filter by subcommand category, then optionally select by relevance
-    let category_tools: Vec<&Tool> = all_tools.iter().filter(|t| filter.matches(&t.name)).collect();
-    let pool: &[&Tool] = if category_tools.is_empty() { &[] } else { &category_tools };
+    let category_tools: Vec<&Tool> = all_tools
+        .iter()
+        .filter(|t| filter.matches(&t.name))
+        .collect();
+    let pool: &[&Tool] = if category_tools.is_empty() {
+        &[]
+    } else {
+        &category_tools
+    };
 
     let relevant = if pool.len() <= 8 {
         pool.to_vec()

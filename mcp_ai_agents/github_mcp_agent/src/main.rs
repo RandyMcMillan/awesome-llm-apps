@@ -9,8 +9,8 @@ mod openai;
 
 use agent::ToolFilter;
 use openai::{
-    LlmClient, GITHUB_MODELS_BASE_URL, GITHUB_MODELS_DEFAULT_MODEL,
-    OLLAMA_BASE_URL, OLLAMA_DEFAULT_MODEL, OPENAI_BASE_URL, OPENAI_DEFAULT_MODEL,
+    LlmClient, GITHUB_MODELS_BASE_URL, GITHUB_MODELS_DEFAULT_MODEL, OLLAMA_BASE_URL,
+    OLLAMA_DEFAULT_MODEL, OPENAI_BASE_URL, OPENAI_DEFAULT_MODEL,
 };
 
 #[derive(Parser)]
@@ -115,55 +115,81 @@ enum Command {
 impl Command {
     fn filter(&self) -> ToolFilter {
         match self {
-            Self::Actions(_)            => ToolFilter::Actions,
-            Self::CodeQuality(_)        => ToolFilter::CodeQuality,
-            Self::CodeSecurity(_)       => ToolFilter::CodeSecurity,
-            Self::Context(_)            => ToolFilter::Context,
-            Self::Copilot(_)            => ToolFilter::Copilot,
-            Self::Dependabot(_)         => ToolFilter::Dependabot,
-            Self::Discussions(_)        => ToolFilter::Discussions,
-            Self::Gists(_)              => ToolFilter::Gists,
-            Self::Git(_)                => ToolFilter::Git,
-            Self::Issues(_)             => ToolFilter::Issues,
-            Self::Labels(_)             => ToolFilter::Labels,
-            Self::Notifications(_)      => ToolFilter::Notifications,
-            Self::Orgs(_)               => ToolFilter::Orgs,
-            Self::Projects(_)           => ToolFilter::Projects,
-            Self::PullRequests(_)       => ToolFilter::PullRequests,
-            Self::Repository(_)         => ToolFilter::Repository,
-            Self::SecretProtection(_)   => ToolFilter::SecretProtection,
+            Self::Actions(_) => ToolFilter::Actions,
+            Self::CodeQuality(_) => ToolFilter::CodeQuality,
+            Self::CodeSecurity(_) => ToolFilter::CodeSecurity,
+            Self::Context(_) => ToolFilter::Context,
+            Self::Copilot(_) => ToolFilter::Copilot,
+            Self::Dependabot(_) => ToolFilter::Dependabot,
+            Self::Discussions(_) => ToolFilter::Discussions,
+            Self::Gists(_) => ToolFilter::Gists,
+            Self::Git(_) => ToolFilter::Git,
+            Self::Issues(_) => ToolFilter::Issues,
+            Self::Labels(_) => ToolFilter::Labels,
+            Self::Notifications(_) => ToolFilter::Notifications,
+            Self::Orgs(_) => ToolFilter::Orgs,
+            Self::Projects(_) => ToolFilter::Projects,
+            Self::PullRequests(_) => ToolFilter::PullRequests,
+            Self::Repository(_) => ToolFilter::Repository,
+            Self::SecretProtection(_) => ToolFilter::SecretProtection,
             Self::SecurityAdvisories(_) => ToolFilter::SecurityAdvisories,
-            Self::Search(_)             => ToolFilter::Search,
-            Self::Stargazers(_)         => ToolFilter::Stargazers,
-            Self::Users(_)              => ToolFilter::Users,
-            Self::Tools                 => unreachable!(),
+            Self::Search(_) => ToolFilter::Search,
+            Self::Stargazers(_) => ToolFilter::Stargazers,
+            Self::Users(_) => ToolFilter::Users,
+            Self::Tools => unreachable!(),
         }
     }
 
     fn args(self) -> QueryArgs {
         match self {
-            Self::Actions(a) | Self::CodeQuality(a) | Self::CodeSecurity(a)
-            | Self::Context(a) | Self::Copilot(a) | Self::Dependabot(a)
-            | Self::Discussions(a) | Self::Gists(a) | Self::Git(a)
-            | Self::Issues(a) | Self::Labels(a) | Self::Notifications(a)
-            | Self::Orgs(a) | Self::Projects(a) | Self::PullRequests(a)
-            | Self::Repository(a) | Self::SecretProtection(a)
-            | Self::SecurityAdvisories(a) | Self::Search(a)
-            | Self::Stargazers(a) | Self::Users(a) => a,
+            Self::Actions(a)
+            | Self::CodeQuality(a)
+            | Self::CodeSecurity(a)
+            | Self::Context(a)
+            | Self::Copilot(a)
+            | Self::Dependabot(a)
+            | Self::Discussions(a)
+            | Self::Gists(a)
+            | Self::Git(a)
+            | Self::Issues(a)
+            | Self::Labels(a)
+            | Self::Notifications(a)
+            | Self::Orgs(a)
+            | Self::Projects(a)
+            | Self::PullRequests(a)
+            | Self::Repository(a)
+            | Self::SecretProtection(a)
+            | Self::SecurityAdvisories(a)
+            | Self::Search(a)
+            | Self::Stargazers(a)
+            | Self::Users(a) => a,
             Self::Tools => unreachable!(),
         }
     }
 
     fn list_tools_flag(&self) -> bool {
         match self {
-            Self::Actions(a) | Self::CodeQuality(a) | Self::CodeSecurity(a)
-            | Self::Context(a) | Self::Copilot(a) | Self::Dependabot(a)
-            | Self::Discussions(a) | Self::Gists(a) | Self::Git(a)
-            | Self::Issues(a) | Self::Labels(a) | Self::Notifications(a)
-            | Self::Orgs(a) | Self::Projects(a) | Self::PullRequests(a)
-            | Self::Repository(a) | Self::SecretProtection(a)
-            | Self::SecurityAdvisories(a) | Self::Search(a)
-            | Self::Stargazers(a) | Self::Users(a) => a.list_tools,
+            Self::Actions(a)
+            | Self::CodeQuality(a)
+            | Self::CodeSecurity(a)
+            | Self::Context(a)
+            | Self::Copilot(a)
+            | Self::Dependabot(a)
+            | Self::Discussions(a)
+            | Self::Gists(a)
+            | Self::Git(a)
+            | Self::Issues(a)
+            | Self::Labels(a)
+            | Self::Notifications(a)
+            | Self::Orgs(a)
+            | Self::Projects(a)
+            | Self::PullRequests(a)
+            | Self::Repository(a)
+            | Self::SecretProtection(a)
+            | Self::SecurityAdvisories(a)
+            | Self::Search(a)
+            | Self::Stargazers(a)
+            | Self::Users(a) => a.list_tools,
             Self::Tools => false,
         }
     }
@@ -201,12 +227,12 @@ async fn main() -> Result<()> {
     }
 
     let openai_key = cli.openai_key.or_else(|| env::var("OPENAI_API_KEY").ok());
-    let llm_url    = cli.llm_url.or_else(|| env::var("LLM_BASE_URL").ok());
-    let model      = cli.model.or_else(|| env::var("LLM_MODEL").ok());
-    let llm        = resolve_llm(openai_key, llm_url, model, &github_token).await?;
+    let llm_url = cli.llm_url.or_else(|| env::var("LLM_BASE_URL").ok());
+    let model = cli.model.or_else(|| env::var("LLM_MODEL").ok());
+    let llm = resolve_llm(openai_key, llm_url, model, &github_token).await?;
 
     let filter = cmd.filter();
-    let args   = cmd.args();
+    let args = cmd.args();
 
     let query = match args.query {
         Some(q) => q,
@@ -240,27 +266,27 @@ async fn list_tools(github_token: &str, filter: Option<&ToolFilter>) -> Result<(
     let toolsets = filter.map(|f| f.toolsets()).unwrap_or("all");
 
     let label = filter.map(|f| match f {
-        ToolFilter::Actions            => "Actions",
-        ToolFilter::CodeQuality        => "Code Quality",
-        ToolFilter::CodeSecurity       => "Code Security",
-        ToolFilter::Context            => "Context",
-        ToolFilter::Copilot            => "Copilot",
-        ToolFilter::Dependabot         => "Dependabot",
-        ToolFilter::Discussions        => "Discussions",
-        ToolFilter::Gists              => "Gists",
-        ToolFilter::Git                => "Git",
-        ToolFilter::Issues             => "Issues",
-        ToolFilter::Labels             => "Labels",
-        ToolFilter::Notifications      => "Notifications",
-        ToolFilter::Orgs               => "Organizations",
-        ToolFilter::Projects           => "Projects",
-        ToolFilter::PullRequests       => "Pull Requests",
-        ToolFilter::Repository         => "Repository",
-        ToolFilter::SecretProtection   => "Secret Protection",
+        ToolFilter::Actions => "Actions",
+        ToolFilter::CodeQuality => "Code Quality",
+        ToolFilter::CodeSecurity => "Code Security",
+        ToolFilter::Context => "Context",
+        ToolFilter::Copilot => "Copilot",
+        ToolFilter::Dependabot => "Dependabot",
+        ToolFilter::Discussions => "Discussions",
+        ToolFilter::Gists => "Gists",
+        ToolFilter::Git => "Git",
+        ToolFilter::Issues => "Issues",
+        ToolFilter::Labels => "Labels",
+        ToolFilter::Notifications => "Notifications",
+        ToolFilter::Orgs => "Organizations",
+        ToolFilter::Projects => "Projects",
+        ToolFilter::PullRequests => "Pull Requests",
+        ToolFilter::Repository => "Repository",
+        ToolFilter::SecretProtection => "Secret Protection",
         ToolFilter::SecurityAdvisories => "Security Advisories",
-        ToolFilter::Search             => "Search",
-        ToolFilter::Stargazers         => "Stargazers",
-        ToolFilter::Users              => "Users",
+        ToolFilter::Search => "Search",
+        ToolFilter::Stargazers => "Stargazers",
+        ToolFilter::Users => "Users",
     });
 
     println!("🔌 Connecting to GitHub MCP server via Docker…");
@@ -269,7 +295,7 @@ async fn list_tools(github_token: &str, filter: Option<&ToolFilter>) -> Result<(
 
     let tools: Vec<_> = match filter {
         Some(f) => all_tools.iter().filter(|t| f.matches(&t.name)).collect(),
-        None    => all_tools.iter().collect(),
+        None => all_tools.iter().collect(),
     };
 
     let sep = "─".repeat(72);
@@ -279,8 +305,18 @@ async fn list_tools(github_token: &str, filter: Option<&ToolFilter>) -> Result<(
         println!("  {cat}");
         println!("  {}", "─".repeat(68));
         for t in &tools {
-            let raw = t.description.as_deref().unwrap_or("").lines().next().unwrap_or("");
-            let desc = if raw.len() > 57 { format!("{}…", &raw[..57]) } else { raw.to_string() };
+            let raw = t
+                .description
+                .as_deref()
+                .unwrap_or("")
+                .lines()
+                .next()
+                .unwrap_or("");
+            let desc = if raw.len() > 57 {
+                format!("{}…", &raw[..57])
+            } else {
+                raw.to_string()
+            };
             println!("  {:<42} {}", t.name, desc);
         }
         println!("\n{sep}");
@@ -291,28 +327,47 @@ async fn list_tools(github_token: &str, filter: Option<&ToolFilter>) -> Result<(
     println!("\n📋 {} tools\n{sep}", tools.len());
     // Group by common name patterns
     let groups: &[(&str, &[&str])] = &[
-        ("Actions",             &["workflow", "run", "job", "artifact", "runner", "secret", "variable", "cache"]),
-        ("Code Quality",        &["code_quality", "autofix"]),
-        ("Code Security",       &["code_scanning", "alert"]),
-        ("Context",             &["get_me", "get_github_context"]),
-        ("Copilot",             &["copilot"]),
-        ("Dependabot",          &["dependabot"]),
-        ("Discussions",         &["discussion"]),
-        ("Gists",               &["gist"]),
-        ("Git",                 &["git_"]),
-        ("Issues",              &["issue", "sub_issue"]),
-        ("Labels",              &["label"]),
-        ("Notifications",       &["notification", "thread"]),
-        ("Organizations",       &["org", "team", "member"]),
-        ("Projects",            &["project"]),
-        ("Pull Requests",       &["pull_request", "pending_review", "add_reply"]),
-        ("Repository",          &["repo", "branch", "commit", "release", "tag",
-                                   "file", "fork", "push_files"]),
-        ("Search",              &["search_"]),
-        ("Secret Protection",   &["secret_scanning"]),
+        (
+            "Actions",
+            &[
+                "workflow", "run", "job", "artifact", "runner", "secret", "variable", "cache",
+            ],
+        ),
+        ("Code Quality", &["code_quality", "autofix"]),
+        ("Code Security", &["code_scanning", "alert"]),
+        ("Context", &["get_me", "get_github_context"]),
+        ("Copilot", &["copilot"]),
+        ("Dependabot", &["dependabot"]),
+        ("Discussions", &["discussion"]),
+        ("Gists", &["gist"]),
+        ("Git", &["git_"]),
+        ("Issues", &["issue", "sub_issue"]),
+        ("Labels", &["label"]),
+        ("Notifications", &["notification", "thread"]),
+        ("Organizations", &["org", "team", "member"]),
+        ("Projects", &["project"]),
+        (
+            "Pull Requests",
+            &["pull_request", "pending_review", "add_reply"],
+        ),
+        (
+            "Repository",
+            &[
+                "repo",
+                "branch",
+                "commit",
+                "release",
+                "tag",
+                "file",
+                "fork",
+                "push_files",
+            ],
+        ),
+        ("Search", &["search_"]),
+        ("Secret Protection", &["secret_scanning"]),
         ("Security Advisories", &["advisory", "cve"]),
-        ("Stargazers",          &["star"]),
-        ("Users",               &["user", "follow", "block"]),
+        ("Stargazers", &["star"]),
+        ("Users", &["user", "follow", "block"]),
     ];
 
     let mut assigned: std::collections::HashSet<&str> = Default::default();
@@ -320,30 +375,56 @@ async fn list_tools(github_token: &str, filter: Option<&ToolFilter>) -> Result<(
         let group: Vec<_> = tools
             .iter()
             .filter(|t| {
-                !assigned.contains(t.name.as_str())
-                    && prefixes.iter().any(|p| t.name.contains(p))
+                !assigned.contains(t.name.as_str()) && prefixes.iter().any(|p| t.name.contains(p))
             })
             .collect();
-        if group.is_empty() { continue; }
-        for t in &group { assigned.insert(t.name.as_str()); }
+        if group.is_empty() {
+            continue;
+        }
+        for t in &group {
+            assigned.insert(t.name.as_str());
+        }
 
         println!("  {cat_label}");
         println!("  {}", "─".repeat(68));
         for t in group {
-            let raw = t.description.as_deref().unwrap_or("").lines().next().unwrap_or("");
-            let desc = if raw.len() > 57 { format!("{}…", &raw[..57]) } else { raw.to_string() };
+            let raw = t
+                .description
+                .as_deref()
+                .unwrap_or("")
+                .lines()
+                .next()
+                .unwrap_or("");
+            let desc = if raw.len() > 57 {
+                format!("{}…", &raw[..57])
+            } else {
+                raw.to_string()
+            };
             println!("  {:<42} {}", t.name, desc);
         }
         println!();
     }
 
-    let rest: Vec<_> = tools.iter().filter(|t| !assigned.contains(t.name.as_str())).collect();
+    let rest: Vec<_> = tools
+        .iter()
+        .filter(|t| !assigned.contains(t.name.as_str()))
+        .collect();
     if !rest.is_empty() {
         println!("  Other");
         println!("  {}", "─".repeat(68));
         for t in rest {
-            let raw = t.description.as_deref().unwrap_or("").lines().next().unwrap_or("");
-            let desc = if raw.len() > 57 { format!("{}…", &raw[..57]) } else { raw.to_string() };
+            let raw = t
+                .description
+                .as_deref()
+                .unwrap_or("")
+                .lines()
+                .next()
+                .unwrap_or("");
+            let desc = if raw.len() > 57 {
+                format!("{}…", &raw[..57])
+            } else {
+                raw.to_string()
+            };
             println!("  {:<42} {}", t.name, desc);
         }
         println!();

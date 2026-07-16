@@ -1,12 +1,19 @@
 use anyhow::{bail, Context, Result};
-use std::{path::{Path, PathBuf}, process::Stdio};
+use std::{
+    path::{Path, PathBuf},
+    process::Stdio,
+};
 use tokio::process::Command;
 
 pub const IMAGE: &str = "ghcr.io/github/github-mcp-server";
 
 /// Locate the `docker` binary cross-platform (PATH + known fallback locations).
 pub fn find_docker() -> Option<PathBuf> {
-    let exe = if cfg!(windows) { "docker.exe" } else { "docker" };
+    let exe = if cfg!(windows) {
+        "docker.exe"
+    } else {
+        "docker"
+    };
 
     // Search PATH first
     if let Ok(path_var) = std::env::var("PATH") {
@@ -38,7 +45,11 @@ pub fn find_docker() -> Option<PathBuf> {
         r"C:\ProgramData\DockerDesktop\version-bin\docker.exe",
     ];
 
-    extras.iter().map(Path::new).find(|p| p.is_file()).map(PathBuf::from)
+    extras
+        .iter()
+        .map(Path::new)
+        .find(|p| p.is_file())
+        .map(PathBuf::from)
 }
 
 /// Find docker, verify the daemon is up, pull the MCP image if absent.

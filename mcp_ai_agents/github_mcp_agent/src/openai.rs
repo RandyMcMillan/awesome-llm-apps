@@ -44,7 +44,11 @@ pub struct LlmClient {
 }
 
 impl LlmClient {
-    pub fn new(base_url: impl Into<String>, api_key: Option<String>, model: impl Into<String>) -> Self {
+    pub fn new(
+        base_url: impl Into<String>,
+        api_key: Option<String>,
+        model: impl Into<String>,
+    ) -> Self {
         Self {
             http: Client::new(),
             base_url: base_url.into(),
@@ -61,7 +65,10 @@ impl LlmClient {
         if let Some(key) = &self.api_key {
             req = req.header("Authorization", format!("Bearer {key}"));
         }
-        let resp = req.send().await.with_context(|| format!("Cannot reach {url}"))?;
+        let resp = req
+            .send()
+            .await
+            .with_context(|| format!("Cannot reach {url}"))?;
         if resp.status().is_success() {
             Ok(())
         } else {
@@ -99,7 +106,10 @@ impl LlmClient {
             req = req.header("Authorization", format!("Bearer {key}"));
         }
 
-        let resp = req.send().await.with_context(|| format!("Failed to reach LLM at {url}"))?;
+        let resp = req
+            .send()
+            .await
+            .with_context(|| format!("Failed to reach LLM at {url}"))?;
 
         let status = resp.status();
         let text = resp.text().await?;
@@ -110,8 +120,8 @@ impl LlmClient {
 
         let data: Value = serde_json::from_str(&text)?;
         let choice = &data["choices"][0]["message"];
-        let msg: Message =
-            serde_json::from_value(choice.clone()).context("Failed to parse LLM response message")?;
+        let msg: Message = serde_json::from_value(choice.clone())
+            .context("Failed to parse LLM response message")?;
         Ok(msg)
     }
 }
