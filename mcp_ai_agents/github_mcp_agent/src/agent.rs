@@ -2,7 +2,7 @@ use anyhow::Result;
 use serde_json::{json, Value};
 
 use crate::mcp::{McpClient, Tool};
-use crate::openai::{Message, OpenAIClient};
+use crate::openai::{LlmClient, Message};
 
 fn tool_to_openai(tool: &Tool) -> Value {
     json!({
@@ -15,7 +15,7 @@ fn tool_to_openai(tool: &Tool) -> Value {
     })
 }
 
-pub async fn run(query: &str, github_token: &str, openai_key: &str) -> Result<String> {
+pub async fn run(query: &str, github_token: &str, llm: LlmClient) -> Result<String> {
     println!("🔌 Connecting to GitHub MCP server via Docker…");
     let mut mcp = McpClient::new(github_token).await?;
 
@@ -24,7 +24,6 @@ pub async fn run(query: &str, github_token: &str, openai_key: &str) -> Result<St
     println!("✅ {} tools loaded", tools.len());
 
     let openai_tools: Vec<Value> = tools.iter().map(tool_to_openai).collect();
-    let openai = OpenAIClient::new(openai_key);
 
     let mut messages = vec![
         Message {
@@ -52,7 +51,7 @@ pub async fn run(query: &str, github_token: &str, openai_key: &str) -> Result<St
     // Agentic loop: call LLM → execute tools → repeat until no tool calls
     loop {
         println!("🤔 Thinking…");
-        let response = openai.chat(&messages, &openai_tools).await?;
+        let response = llm.chat(&messages, &openai_tools).await?;
 
         match response.tool_calls.as_deref() {
             Some(calls) if !calls.is_empty() => {

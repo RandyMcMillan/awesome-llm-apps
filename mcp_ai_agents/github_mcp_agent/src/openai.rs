@@ -3,6 +3,11 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
+pub const OPENAI_BASE_URL: &str = "https://api.openai.com/v1";
+pub const OLLAMA_BASE_URL: &str = "http://localhost:11434/v1";
+pub const OPENAI_DEFAULT_MODEL: &str = "gpt-4o-mini";
+pub const OLLAMA_DEFAULT_MODEL: &str = "llama3.2";
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Message {
     pub role: String,
@@ -28,19 +33,32 @@ pub struct FunctionCall {
     pub arguments: String,
 }
 
-pub struct OpenAIClient {
+pub struct LlmClient {
     http: Client,
-    api_key: String,
-    model: String,
+    base_url: String,
+    /// None → no Authorization header (e.g. local Ollama)
+    api_key: Option<String>,
+    pub model: String,
 }
 
-impl OpenAIClient {
-    pub fn new(api_key: &str) -> Self {
+impl LlmClient {
+    pub fn new(base_url: impl Into<String>, api_key: Option<String>, model: impl Into<String>) -> Self {
         Self {
             http: Client::new(),
-            api_key: api_key.to_string(),
-            model: "gpt-4o-mini".to_string(),
+            base_url: base_url.into(),
+            api_key,
+            model: model.into(),
         }
+    }
+
+    /// Check whether the endpoint is reachable (used for Ollama auto-detect).
+    pub async fn probe(&self) -> bool {
+        self.http
+            .get(format!("{}/models", self.base_url))
+            .send()
+            .await
+            .map(|r| r.status().is_success())
+            .unwrap_or(false)
     }
 
     pub async fn chat(&self, messages: &[Message], tools: &[Value]) -> Result<Message> {
@@ -55,26 +73,25 @@ impl OpenAIClient {
             })
         };
 
-        let resp = self
-            .http
-            .post("https://api.openai.com/v1/chat/completions")
-            .header("Authorization", format!("Bearer {}", self.api_key))
-            .json(&body)
-            .send()
-            .await
-            .context("Failed to reach OpenAI API")?;
+        let url = format!("{}/chat/completions", self.base_url);
+        let mut req = self.http.post(&url).json(&body);
+        if let Some(key) = &self.api_key {
+            req = req.header("Authorization", format!("Bearer {key}"));
+        }
+
+        let resp = req.send().await.with_context(|| format!("Failed to reach LLM at {url}"))?;
 
         let status = resp.status();
         let text = resp.text().await?;
 
         if !status.is_success() {
-            anyhow::bail!("OpenAI API error {status}: {text}");
+            anyhow::bail!("LLM API error {status}: {text}");
         }
 
         let data: Value = serde_json::from_str(&text)?;
         let choice = &data["choices"][0]["message"];
         let msg: Message =
-            serde_json::from_value(choice.clone()).context("Failed to parse OpenAI message")?;
+            serde_json::from_value(choice.clone()).context("Failed to parse LLM response message")?;
         Ok(msg)
     }
 }
