@@ -314,7 +314,7 @@ async fn main() -> Result<()> {
                 github_mcp_agent::docker::start_mcp_server(&docker, &github_token).await?;
             }
             oxker::setup_tracing();
-            oxker::run_with_args(&args).await;
+            oxker::run_with_args(&args, Some(github_mcp_agent::docker::CONTAINER_NAME.to_string())).await;
             return Ok(());
         }
     }
