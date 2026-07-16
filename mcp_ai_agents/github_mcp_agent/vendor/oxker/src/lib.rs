@@ -153,7 +153,11 @@ pub async fn run_with_args(args: &[String]) {
     use clap::Parser;
     let argv = std::iter::once("oxker").chain(args.iter().map(String::as_str));
     let parsed = config::parse_args::Args::parse_from(argv);
-    let config = Config::from(&parsed);
+    // If the user didn't pass -g (disable-gui), enable the TUI
+    let mut config = Config::from(&parsed);
+    if !parsed.gui {
+        config.gui = true;
+    }
     run_with_config(config).await;
 }
 
