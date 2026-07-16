@@ -249,7 +249,7 @@ async fn main() -> Result<()> {
         if let Some(Command::DockerTui { args }) = cli.command {
             let is_help = args.iter().any(|a| a == "--help" || a == "-h");
             if is_help {
-                let sep = "─".repeat(68);
+                let sep = "─".repeat(72);
                 let cname = github_mcp_agent::docker::CONTAINER_NAME;
                 println!(
                     "\n\
@@ -259,17 +259,47 @@ async fn main() -> Result<()> {
                      a named '{cname}' container, then launches the oxker TUI.\n\
                      \n\
                      Usage:\n\
-                     \x20 github-mcp-agent [--github-token <TOKEN>] docker-tui [OXKER_OPTIONS]\n\
+                     \x20 github-mcp-agent [--github-token <TOKEN>] docker-tui [OPTIONS]\n\
                      \n\
                      Global flags (before docker-tui):\n\
-                     \x20 --github-token <TOKEN>   Start '{cname}' container\n\
-                     \x20                          (or set GITHUB_TOKEN env var)\n\
+                     {sep}\n\
+                     \x20 {:<36} Start '{cname}' container\n\
+                     \x20 {:<36} (or set GITHUB_TOKEN env var)\n\
                      \n\
-                     Oxker options (forwarded verbatim):\n\
-                     {sep}"
+                     Options:\n\
+                     {sep}\n\
+                     \x20 {:<36} Docker update interval in ms [default: 1000]\n\
+                     \x20 {:<36} Remove timestamps from Docker logs\n\
+                     \x20 {:<36} Colorize logs (conflicts with -r)\n\
+                     \x20 {:<36} Raw logs, remove ansi formatting (conflicts with -c)\n\
+                     \x20 {:<36} Show self when running as a Docker container\n\
+                     \x20 {:<36} Don't draw GUI (debug mode)\n\
+                     \x20 {:<36} Docker host [default: /var/run/docker.sock]\n\
+                     \x20 {:<36} Do not include stderr output in logs\n\
+                     \x20 {:<36} Display log timestamps in given timezone [default: UTC]\n\
+                     \x20 {:<36} Directory for saving exported logs [default: $HOME]\n\
+                     \x20 {:<36} Path to a config file (TOML, JSONC, or JSON)\n\
+                     \x20 {:<36} Force use of docker CLI when execing into containers\n\
+                     \x20 {:<36} Print this help\n\
+                     \x20 {:<36} Print version\n\
+                     {sep}",
+                    "--github-token <TOKEN>",
+                    "",
+                    "-d <ms>",
+                    "-t",
+                    "-c",
+                    "-r",
+                    "-s",
+                    "-g",
+                    "--host <HOST>",
+                    "--no-stderr",
+                    "--timezone <TIMEZONE>",
+                    "--save-dir <DIR>",
+                    "--config-file <PATH>",
+                    "--use-cli",
+                    "-h, --help",
+                    "-V, --version",
                 );
-                oxker::setup_tracing();
-                oxker::run_with_args(&args).await;
                 return Ok(());
             }
             println!("🔌 Connecting to GitHub MCP server via Docker…");
