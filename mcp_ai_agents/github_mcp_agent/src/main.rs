@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use clap::Parser;
 use std::{env, io::Write};
 
@@ -143,12 +143,31 @@ async fn resolve_llm(
         return Ok(ollama);
     }
 
-    // Fall back to GitHub Models — authenticated with the GitHub token already in hand
+    // Fall back to GitHub Models — authenticated with the GitHub token already in hand.
+    // Probe first so we give a clear error if the token lacks the 'models' permission.
     let m = model.unwrap_or_else(|| GITHUB_MODELS_DEFAULT_MODEL.into());
-    println!("🐙 Using GitHub Models ({m})");
-    Ok(LlmClient::new(
-        GITHUB_MODELS_BASE_URL,
-        Some(github_token.to_string()),
-        m,
-    ))
+    let gh = LlmClient::new(GITHUB_MODELS_BASE_URL, Some(github_token.to_string()), &m);
+    match gh.probe_result().await {
+        Ok(()) => {
+            println!("🐙 Using GitHub Models ({m})");
+            Ok(gh)
+        }
+        Err(e) => {
+            let msg = e.to_string();
+            if msg.contains("401") || msg.contains("unauthorized") || msg.contains("models") {
+                bail!(
+                    "GitHub Models requires a fine-grained PAT with 'Models: Read' permission.\n  \
+                     Your current token is missing that scope.\n\n  \
+                     Fix: create a new token at https://github.com/settings/personal-access-tokens/new\n  \
+                         → Permissions → Account permissions → Models → Read\n  \
+                     Then rerun with: --github-token <new-token>\n\n  \
+                     Alternatives:\n  \
+                     • Set OPENAI_API_KEY (or --openai-key) to use OpenAI\n  \
+                     • Start Ollama locally: https://ollama.com  then: ollama pull {m}\n  \
+                     • Use --list-tools to browse available MCP tools with no LLM"
+                );
+            }
+            bail!("GitHub Models unavailable: {e}");
+        }
+    }
 }

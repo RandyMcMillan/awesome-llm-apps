@@ -53,7 +53,25 @@ impl LlmClient {
         }
     }
 
-    /// Check whether the endpoint is reachable (used for Ollama auto-detect).
+    /// Check whether the endpoint is reachable and the key (if any) is accepted.
+    /// Returns Ok(()) on success, Err with status text on failure.
+    pub async fn probe_result(&self) -> Result<()> {
+        let url = format!("{}/models", self.base_url);
+        let mut req = self.http.get(&url);
+        if let Some(key) = &self.api_key {
+            req = req.header("Authorization", format!("Bearer {key}"));
+        }
+        let resp = req.send().await.with_context(|| format!("Cannot reach {url}"))?;
+        if resp.status().is_success() {
+            Ok(())
+        } else {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            anyhow::bail!("{status}: {body}");
+        }
+    }
+
+    /// Lightweight reachability check (no auth) — used for Ollama.
     pub async fn probe(&self) -> bool {
         self.http
             .get(format!("{}/models", self.base_url))
