@@ -123,16 +123,28 @@ async fn select_tools<'a>(query: &str, tools: &'a [Tool], llm: &LlmClient) -> Ve
     tools.iter().take(10).collect()
 }
 
-pub async fn run(query: &str, github_token: &str, llm: LlmClient) -> Result<String> {
+pub async fn run(
+    query: &str,
+    github_token: &str,
+    llm: LlmClient,
+    filter: ToolFilter,
+) -> Result<String> {
     println!("🔌 Connecting to GitHub MCP server via Docker…");
-    let mut mcp = McpClient::new(github_token).await?;
+    let mut mcp = McpClient::new(github_token, filter.toolsets()).await?;
 
     println!("📋 Loading available tools…");
-    let tools = mcp.list_tools().await?;
-    println!("✅ {} tools loaded", tools.len());
+    let all_tools = mcp.list_tools().await?;
+    println!("✅ {} tools loaded", all_tools.len());
 
-    // Phase 1: select relevant tools (avoids blowing the token limit)
-    let relevant = select_tools(query, &tools, &llm).await;
+    // Pre-filter by subcommand category, then optionally select by relevance
+    let category_tools: Vec<&Tool> = all_tools.iter().filter(|t| filter.matches(&t.name)).collect();
+    let pool: &[&Tool] = if category_tools.is_empty() { &[] } else { &category_tools };
+
+    let relevant = if pool.len() <= 8 {
+        pool.to_vec()
+    } else {
+        select_tools(query, &all_tools, &llm).await
+    };
     let openai_tools: Vec<Value> = relevant.iter().map(|t| tool_to_openai(t)).collect();
 
     let mut messages = vec![
