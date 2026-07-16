@@ -182,14 +182,15 @@ async fn list_tools(github_token: &str, filter: Option<&ToolFilter>) -> Result<(
     let sep = "─".repeat(72);
 
     if let Some(cat) = label {
-        // Single-category listing
-        println!("\n📋 {} tools — {cat}\n{sep}", tools.len());
+        println!("\n📋 {} tools\n{sep}", tools.len());
+        println!("  {cat}");
+        println!("  {}", "─".repeat(68));
         for t in &tools {
             let raw = t.description.as_deref().unwrap_or("").lines().next().unwrap_or("");
             let desc = if raw.len() > 57 { format!("{}…", &raw[..57]) } else { raw.to_string() };
             println!("  {:<38} {}", t.name, desc);
         }
-        println!("{sep}");
+        println!("\n{sep}");
         return Ok(());
     }
 
