@@ -149,15 +149,16 @@ pub async fn run_embedded() {
 
 /// Run the TUI with args forwarded from a parent binary (e.g. `["--help"]`, `["-d", "500"]`).
 /// Prepends a dummy program name so clap parses correctly.
-pub async fn run_with_args(args: &[String]) {
+/// Pass `filter` to pre-seed the container name filter (hides unrelated containers).
+pub async fn run_with_args(args: &[String], filter: Option<String>) {
     use clap::Parser;
     let argv = std::iter::once("oxker").chain(args.iter().map(String::as_str));
     let parsed = config::parse_args::Args::parse_from(argv);
-    // If the user didn't pass -g (disable-gui), enable the TUI
     let mut config = Config::from(&parsed);
     if !parsed.gui {
         config.gui = true;
     }
+    config.initial_filter = filter;
     run_with_config(config).await;
 }
 

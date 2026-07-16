@@ -185,12 +185,15 @@ pub struct AppData {
 impl AppData {
     /// Generate a default app_state
     pub fn new(config: Config, redraw: &Arc<Rerender>) -> Self {
+        let filter = config.initial_filter.as_ref().map_or_else(Filter::new, |term| {
+            Filter { term: Some(term.clone()), by: crate::app_data::FilterBy::Name }
+        });
         Self {
             config,
             containers: StatefulList::new(vec![]),
             current_sorted_id: vec![],
             error: None,
-            filter: Filter::new(),
+            filter,
             hidden_containers: vec![],
             inspect_data: None,
             rerender: Arc::clone(redraw),
