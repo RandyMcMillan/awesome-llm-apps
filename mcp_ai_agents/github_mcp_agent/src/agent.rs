@@ -158,6 +158,7 @@ pub async fn run(
     github_token: &str,
     llm: LlmClient,
     filter: ToolFilter,
+    explicit_tools: &[String],
 ) -> Result<String> {
     println!("🔌 Connecting to GitHub MCP server via Docker…");
     let mut mcp = McpClient::new(github_token, filter.toolsets()).await?;
@@ -166,21 +167,46 @@ pub async fn run(
     let all_tools = mcp.list_tools().await?;
     println!("✅ {} tools loaded", all_tools.len());
 
-    // Pre-filter by subcommand category, then optionally select by relevance
-    let category_tools: Vec<&Tool> = all_tools
-        .iter()
-        .filter(|t| filter.matches(&t.name))
-        .collect();
-    let pool: &[&Tool] = if category_tools.is_empty() {
-        &[]
-    } else {
-        &category_tools
-    };
+    // If the caller pinned specific tools, validate then use them directly.
+    let relevant: Vec<&Tool> = if !explicit_tools.is_empty() {
+        let available: std::collections::HashMap<&str, &Tool> =
+            all_tools.iter().map(|t| (t.name.as_str(), t)).collect();
 
-    let relevant = if pool.len() <= 8 {
-        pool.to_vec()
+        let unknown: Vec<&str> = explicit_tools
+            .iter()
+            .filter(|n| !available.contains_key(n.as_str()))
+            .map(String::as_str)
+            .collect();
+
+        if !unknown.is_empty() {
+            let valid: Vec<&str> = all_tools
+                .iter()
+                .filter(|t| filter.matches(&t.name))
+                .map(|t| t.name.as_str())
+                .collect();
+            anyhow::bail!(
+                "Unknown tool(s): {}\n\nAvailable tools for this subcommand:\n  {}",
+                unknown.join(", "),
+                valid.join("\n  ")
+            );
+        }
+
+        explicit_tools
+            .iter()
+            .filter_map(|n| available.get(n.as_str()).copied())
+            .collect()
     } else {
-        select_tools(query, &all_tools, &llm).await
+        // Auto-select: pre-filter by category then let LLM narrow down if needed
+        let category_tools: Vec<&Tool> = all_tools
+            .iter()
+            .filter(|t| filter.matches(&t.name))
+            .collect();
+
+        if category_tools.len() <= 8 {
+            category_tools
+        } else {
+            select_tools(query, &all_tools, &llm).await
+        }
     };
     let openai_tools: Vec<Value> = relevant.iter().map(|t| tool_to_openai(t)).collect();
 

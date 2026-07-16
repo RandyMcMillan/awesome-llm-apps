@@ -56,6 +56,10 @@ struct QueryArgs {
     /// List tools available for this subcommand (no LLM required)
     #[arg(long)]
     list_tools: bool,
+
+    /// Restrict to specific tools (comma-separated, validated against --list-tools)
+    #[arg(long, value_delimiter = ',')]
+    tools: Vec<String>,
 }
 
 #[derive(Subcommand)]
@@ -255,7 +259,7 @@ async fn main() -> Result<()> {
     println!("Query      : {}", full_query);
     println!("{}", "─".repeat(60));
 
-    let result = agent::run(&full_query, &github_token, llm, filter).await?;
+    let result = agent::run(&full_query, &github_token, llm, filter, &args.tools).await?;
     println!("\n### Results\n{}", result);
 
     Ok(())
