@@ -1,0 +1,17 @@
+[package]
+name = "github-mcp-agent"
+version = "0.1.0"
+edition = "2021"
+description = "GitHub MCP Agent - Explore GitHub repositories with natural language"
+
+[[bin]]
+name = "github-mcp-agent"
+path = "src/main.rs"
+
+[dependencies]
+tokio       = { version = "1", features = ["full"] }
+serde       = { version = "1", features = ["derive"] }
+serde_json  = "1"
+reqwest     = { version = "0.12", features = ["json"] }
+anyhow      = "1"
+clap        = { version = "4", features = ["derive"] }
