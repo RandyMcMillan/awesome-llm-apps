@@ -2,16 +2,12 @@ use anyhow::{bail, Result};
 use clap::{Args, Parser, Subcommand};
 use std::{env, io::Write};
 
-mod agent;
-mod docker;
-mod mcp;
-mod openai;
-
-use agent::ToolFilter;
-use openai::{
+use github_mcp_agent::agent::ToolFilter;
+use github_mcp_agent::openai::{
     LlmClient, GITHUB_MODELS_BASE_URL, GITHUB_MODELS_DEFAULT_MODEL, OLLAMA_BASE_URL,
     OLLAMA_DEFAULT_MODEL, OPENAI_BASE_URL, OPENAI_DEFAULT_MODEL,
 };
+use github_mcp_agent::{agent, mcp};
 
 #[derive(Parser)]
 #[command(name = "github-mcp-agent")]
