@@ -4,6 +4,40 @@ use serde_json::{json, Value};
 use crate::mcp::{McpClient, Tool};
 use crate::openai::{LlmClient, Message};
 
+/// Which GitHub toolset (and tool-name filter) to activate for a subcommand.
+#[derive(Debug, Clone)]
+pub enum ToolFilter {
+    Issues,
+    PullRequests,
+    Repository,
+    Search,
+}
+
+impl ToolFilter {
+    /// The `GITHUB_TOOLSETS` value to pass to the MCP server.
+    pub fn toolsets(&self) -> &'static str {
+        match self {
+            Self::Issues        => "issues",
+            Self::PullRequests  => "pull_requests",
+            Self::Repository    => "repos",
+            Self::Search        => "repos,issues,pull_requests",
+        }
+    }
+
+    fn matches(&self, name: &str) -> bool {
+        match self {
+            Self::Issues        => name.contains("issue") || name.contains("sub_issue"),
+            Self::PullRequests  => name.contains("pull_request")
+                                || name.contains("pending_review")
+                                || name.contains("add_reply"),
+            Self::Repository    => !name.contains("issue")
+                                && !name.contains("pull_request")
+                                && !name.contains("search"),
+            Self::Search        => name.starts_with("search_"),
+        }
+    }
+}
+
 /// Full tool definition with complete inputSchema — used for actual tool calls.
 fn tool_to_openai(tool: &Tool) -> Value {
     json!({

@@ -1,5 +1,5 @@
 use anyhow::{bail, Result};
-use clap::Parser;
+use clap::{Args, Parser, Subcommand};
 use std::{env, io::Write};
 
 mod agent;
@@ -7,6 +7,7 @@ mod docker;
 mod mcp;
 mod openai;
 
+use agent::ToolFilter;
 use openai::{
     LlmClient, GITHUB_MODELS_BASE_URL, GITHUB_MODELS_DEFAULT_MODEL,
     OLLAMA_BASE_URL, OLLAMA_DEFAULT_MODEL, OPENAI_BASE_URL, OPENAI_DEFAULT_MODEL,
@@ -15,38 +16,58 @@ use openai::{
 #[derive(Parser)]
 #[command(name = "github-mcp-agent")]
 #[command(about = "🐙 GitHub MCP Agent — explore GitHub repos with natural language")]
+#[command(subcommand_required = true, arg_required_else_help = true)]
 struct Cli {
+    /// GitHub Personal Access Token (or set GITHUB_TOKEN env var)
+    #[arg(long, global = true)]
+    github_token: Option<String>,
+
+    /// OpenAI API Key — optional (or set OPENAI_API_KEY env var)
+    #[arg(long, global = true)]
+    openai_key: Option<String>,
+
+    /// LLM base URL — e.g. http://localhost:11434/v1 (or set LLM_BASE_URL env var)
+    #[arg(long, global = true)]
+    llm_url: Option<String>,
+
+    /// Model name override (or set LLM_MODEL env var)
+    #[arg(long, global = true)]
+    model: Option<String>,
+
+    #[command(subcommand)]
+    command: Command,
+}
+
+/// Shared args for all query subcommands
+#[derive(Args)]
+struct QueryArgs {
     /// Repository to analyze (format: owner/repo)
     #[arg(short, long, default_value = "Shubhamsaboo/awesome-llm-apps")]
     repo: String,
 
-    /// Query to run against the repository
+    /// Natural language query
     #[arg(short, long)]
     query: Option<String>,
+}
 
-    /// List available MCP tools and exit (no LLM required)
-    #[arg(long)]
-    list_tools: bool,
+#[derive(Subcommand)]
+enum Command {
+    /// Query and explore GitHub issues
+    Issues(QueryArgs),
 
-    /// GitHub Personal Access Token (or set GITHUB_TOKEN env var)
-    #[arg(long)]
-    github_token: Option<String>,
+    /// Query and explore pull requests
+    #[command(name = "prs")]
+    PullRequests(QueryArgs),
 
-    /// OpenAI API Key — optional; omit to use Ollama or a key-free endpoint
-    /// (or set OPENAI_API_KEY env var)
-    #[arg(long)]
-    openai_key: Option<String>,
+    /// Query repository info: files, branches, commits, releases, tags
+    #[command(name = "repo")]
+    Repository(QueryArgs),
 
-    /// LLM base URL (default: OpenAI if key present, Ollama otherwise)
-    /// Examples: https://api.openai.com/v1  http://localhost:11434/v1
-    /// (or set LLM_BASE_URL env var)
-    #[arg(long)]
-    llm_url: Option<String>,
+    /// Search code, commits, issues, or repositories
+    Search(QueryArgs),
 
-    /// Model name to use (default: gpt-4o-mini for OpenAI, llama3.2 for Ollama)
-    /// (or set LLM_MODEL env var)
-    #[arg(long)]
-    model: Option<String>,
+    /// List all available MCP tools grouped by category (no token or LLM required)
+    Tools,
 }
 
 #[tokio::main]
@@ -56,28 +77,32 @@ async fn main() -> Result<()> {
     let github_token = cli
         .github_token
         .or_else(|| env::var("GITHUB_TOKEN").ok())
-        .unwrap_or_default(); // token not required for --list-tools
+        .unwrap_or_default();
 
     println!("🐙 GitHub MCP Agent");
 
-    // --list-tools: tools/list doesn't call the GitHub API, token can be empty
-    if cli.list_tools {
+    if let Command::Tools = cli.command {
         return list_tools(&github_token).await;
     }
 
-    // All other operations require a real token
     if github_token.is_empty() {
-        anyhow::bail!("GitHub token required. Set GITHUB_TOKEN env var or use --github-token");
+        bail!("GitHub token required. Set GITHUB_TOKEN env var or use --github-token");
     }
 
-    // Resolve LLM backend (deferred — only needed for queries)
     let openai_key = cli.openai_key.or_else(|| env::var("OPENAI_API_KEY").ok());
     let llm_url    = cli.llm_url.or_else(|| env::var("LLM_BASE_URL").ok());
     let model      = cli.model.or_else(|| env::var("LLM_MODEL").ok());
+    let llm        = resolve_llm(openai_key, llm_url, model, &github_token).await?;
 
-    let llm = resolve_llm(openai_key, llm_url, model, &github_token).await?;
+    let (args, filter) = match cli.command {
+        Command::Issues(a)       => (a, ToolFilter::Issues),
+        Command::PullRequests(a) => (a, ToolFilter::PullRequests),
+        Command::Repository(a)   => (a, ToolFilter::Repository),
+        Command::Search(a)       => (a, ToolFilter::Search),
+        Command::Tools           => unreachable!(),
+    };
 
-    let query = match cli.query {
+    let query = match args.query {
         Some(q) => q,
         None => {
             print!("Query: ");
@@ -88,17 +113,17 @@ async fn main() -> Result<()> {
         }
     };
 
-    let full_query = if query.contains(&cli.repo) {
+    let full_query = if query.contains(&args.repo) {
         query
     } else {
-        format!("{} in {}", query, cli.repo)
+        format!("{} in {}", query, args.repo)
     };
 
-    println!("Repository : {}", cli.repo);
+    println!("Repository : {}", args.repo);
     println!("Query      : {}", full_query);
     println!("{}", "─".repeat(60));
 
-    let result = agent::run(&full_query, &github_token, llm).await?;
+    let result = agent::run(&full_query, &github_token, llm, filter).await?;
     println!("\n### Results\n{}", result);
 
     Ok(())
@@ -106,12 +131,11 @@ async fn main() -> Result<()> {
 
 async fn list_tools(github_token: &str) -> Result<()> {
     println!("🔌 Connecting to GitHub MCP server via Docker…");
-    let mut mcp = mcp::McpClient::new(github_token).await?;
+    let mut mcp = mcp::McpClient::new(github_token, "repos,issues,pull_requests").await?;
     let tools = mcp.list_tools().await?;
 
-    // Group tools by category derived from their name prefix
-    let categories = [
-        ("Issues",        &["issue", "sub_issue", "list_issue"] as &[&str]),
+    let categories: &[(&str, &[&str])] = &[
+        ("Issues",        &["issue", "sub_issue"]),
         ("Pull Requests", &["pull_request", "add_comment_to_pending", "add_reply"]),
         ("Repository",    &["create_repo", "fork", "list_branch", "list_commit",
                              "list_release", "list_tag", "list_repository",
@@ -123,10 +147,9 @@ async fn list_tools(github_token: &str) -> Result<()> {
 
     let mut assigned: std::collections::HashSet<&str> = Default::default();
     let sep = "─".repeat(72);
-
     println!("\n📋 {} tools\n{sep}", tools.len());
 
-    for (label, prefixes) in &categories {
+    for (label, prefixes) in categories {
         let group: Vec<_> = tools
             .iter()
             .filter(|t| {
@@ -134,32 +157,26 @@ async fn list_tools(github_token: &str) -> Result<()> {
                     && prefixes.iter().any(|p| t.name.contains(p))
             })
             .collect();
-
-        if group.is_empty() {
-            continue;
-        }
-        for t in &group {
-            assigned.insert(t.name.as_str());
-        }
+        if group.is_empty() { continue; }
+        for t in &group { assigned.insert(t.name.as_str()); }
 
         println!("  {label}");
         println!("  {}", "─".repeat(68));
         for t in group {
-            let desc = t.description.as_deref().unwrap_or("").lines().next().unwrap_or("");
-            let desc = if desc.len() > 58 { format!("{}…", &desc[..57]) } else { desc.to_string() };
+            let raw = t.description.as_deref().unwrap_or("").lines().next().unwrap_or("");
+            let desc = if raw.len() > 57 { format!("{}…", &raw[..57]) } else { raw.to_string() };
             println!("  {:<38} {}", t.name, desc);
         }
         println!();
     }
 
-    // Anything not matched above
     let rest: Vec<_> = tools.iter().filter(|t| !assigned.contains(t.name.as_str())).collect();
     if !rest.is_empty() {
         println!("  Other");
         println!("  {}", "─".repeat(68));
         for t in rest {
-            let desc = t.description.as_deref().unwrap_or("").lines().next().unwrap_or("");
-            let desc = if desc.len() > 58 { format!("{}…", &desc[..57]) } else { desc.to_string() };
+            let raw = t.description.as_deref().unwrap_or("").lines().next().unwrap_or("");
+            let desc = if raw.len() > 57 { format!("{}…", &raw[..57]) } else { raw.to_string() };
             println!("  {:<38} {}", t.name, desc);
         }
         println!();
@@ -169,12 +186,6 @@ async fn list_tools(github_token: &str) -> Result<()> {
     Ok(())
 }
 
-/// Determine which LLM backend to use:
-///   1. Explicit --llm-url              → use as-is (key optional)
-///   2. OPENAI_API_KEY / --openai-key   → OpenAI
-///   3. Ollama reachable at localhost   → Ollama (no key needed)
-///   4. GitHub token present            → GitHub Models (free, rate-limited)
-///   5. None of the above              → error with instructions
 async fn resolve_llm(
     api_key: Option<String>,
     base_url: Option<String>,
@@ -193,7 +204,6 @@ async fn resolve_llm(
         return Ok(LlmClient::new(OPENAI_BASE_URL, Some(key), m));
     }
 
-    // No explicit key — probe Ollama first (local, free)
     let ollama_model = model.clone().unwrap_or_else(|| OLLAMA_DEFAULT_MODEL.into());
     let ollama = LlmClient::new(OLLAMA_BASE_URL, None, &ollama_model);
     if ollama.probe().await {
@@ -201,8 +211,6 @@ async fn resolve_llm(
         return Ok(ollama);
     }
 
-    // Fall back to GitHub Models — authenticated with the GitHub token already in hand.
-    // Probe first so we give a clear error if the token lacks the 'models' permission.
     let m = model.unwrap_or_else(|| GITHUB_MODELS_DEFAULT_MODEL.into());
     let gh = LlmClient::new(GITHUB_MODELS_BASE_URL, Some(github_token.to_string()), &m);
     match gh.probe_result().await {
@@ -215,14 +223,11 @@ async fn resolve_llm(
             if msg.contains("401") || msg.contains("unauthorized") || msg.contains("models") {
                 bail!(
                     "GitHub Models requires a fine-grained PAT with 'Models: Read' permission.\n  \
-                     Your current token is missing that scope.\n\n  \
-                     Fix: create a new token at https://github.com/settings/personal-access-tokens/new\n  \
-                         → Permissions → Account permissions → Models → Read\n  \
-                     Then rerun with: --github-token <new-token>\n\n  \
+                     Fix: https://github.com/settings/personal-access-tokens/new\n  \
+                         → Account permissions → Models → Read\n\n  \
                      Alternatives:\n  \
-                     • Set OPENAI_API_KEY (or --openai-key) to use OpenAI\n  \
-                     • Start Ollama locally: https://ollama.com  then: ollama pull {m}\n  \
-                     • Use --list-tools to browse available MCP tools with no LLM"
+                     • Set OPENAI_API_KEY to use OpenAI\n  \
+                     • Start Ollama: https://ollama.com  then: ollama pull {m}"
                 );
             }
             bail!("GitHub Models unavailable: {e}");

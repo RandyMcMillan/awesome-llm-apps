@@ -30,7 +30,7 @@ pub struct Tool {
 }
 
 impl McpClient {
-    pub async fn new(github_token: &str) -> Result<Self> {
+    pub async fn new(github_token: &str, toolsets: &str) -> Result<Self> {
         let docker: PathBuf = docker::ensure_ready().await?;
 
         let mut child = Command::new(&docker)
@@ -45,7 +45,7 @@ impl McpClient {
                 docker::IMAGE,
             ])
             .env("GITHUB_PERSONAL_ACCESS_TOKEN", github_token)
-            .env("GITHUB_TOOLSETS", "repos,issues,pull_requests")
+            .env("GITHUB_TOOLSETS", toolsets)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
