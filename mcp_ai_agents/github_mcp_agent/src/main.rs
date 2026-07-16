@@ -56,13 +56,18 @@ async fn main() -> Result<()> {
     let github_token = cli
         .github_token
         .or_else(|| env::var("GITHUB_TOKEN").ok())
-        .context("GitHub token required. Set GITHUB_TOKEN env var or use --github-token")?;
+        .unwrap_or_default(); // token not required for --list-tools
 
     println!("🐙 GitHub MCP Agent");
 
-    // --list-tools: connect to MCP and print tool catalogue, no LLM needed
+    // --list-tools: tools/list doesn't call the GitHub API, token can be empty
     if cli.list_tools {
         return list_tools(&github_token).await;
+    }
+
+    // All other operations require a real token
+    if github_token.is_empty() {
+        anyhow::bail!("GitHub token required. Set GITHUB_TOKEN env var or use --github-token");
     }
 
     // Resolve LLM backend (deferred — only needed for queries)
