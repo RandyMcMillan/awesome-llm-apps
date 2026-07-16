@@ -3,6 +3,7 @@ use clap::Parser;
 use std::{env, io::Write};
 
 mod agent;
+mod docker;
 mod mcp;
 mod openai;
 

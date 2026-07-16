@@ -2,6 +2,7 @@ use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
+    path::PathBuf,
     process::Stdio,
     sync::atomic::{AtomicU64, Ordering},
 };
@@ -9,6 +10,8 @@ use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
     process::{Child, ChildStdin, Command},
 };
+
+use crate::docker;
 
 static REQUEST_ID: AtomicU64 = AtomicU64::new(1);
 
@@ -28,7 +31,9 @@ pub struct Tool {
 
 impl McpClient {
     pub async fn new(github_token: &str) -> Result<Self> {
-        let mut child = Command::new("docker")
+        let docker: PathBuf = docker::ensure_ready().await?;
+
+        let mut child = Command::new(&docker)
             .args([
                 "run",
                 "-i",
@@ -37,7 +42,7 @@ impl McpClient {
                 "GITHUB_PERSONAL_ACCESS_TOKEN",
                 "-e",
                 "GITHUB_TOOLSETS",
-                "ghcr.io/github/github-mcp-server",
+                docker::IMAGE,
             ])
             .env("GITHUB_PERSONAL_ACCESS_TOKEN", github_token)
             .env("GITHUB_TOOLSETS", "repos,issues,pull_requests")
@@ -45,7 +50,7 @@ impl McpClient {
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
             .spawn()
-            .context("Failed to spawn Docker. Is Docker installed and running?")?;
+            .with_context(|| format!("Failed to spawn {}", docker.display()))?;
 
         let stdin = child.stdin.take().context("Failed to get child stdin")?;
         let stdout = child.stdout.take().context("Failed to get child stdout")?;
