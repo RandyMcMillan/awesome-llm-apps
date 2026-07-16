@@ -247,6 +247,11 @@ async fn main() -> Result<()> {
     if is_docker_tui {
         #[cfg(feature = "docker-tui")]
         if let Some(Command::DockerTui { args }) = cli.command {
+            println!("🔌 Connecting to GitHub MCP server via Docker…");
+            let docker = github_mcp_agent::docker::ensure_ready().await?;
+            if !github_token.is_empty() {
+                github_mcp_agent::docker::start_mcp_server(&docker, &github_token).await?;
+            }
             oxker::setup_tracing();
             oxker::run_with_args(&args).await;
             return Ok(());
