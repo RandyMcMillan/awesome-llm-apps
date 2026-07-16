@@ -109,6 +109,10 @@ enum Command {
     Stargazers(QueryArgs),
     /// GitHub Users
     Users(QueryArgs),
+    /// Docker container TUI (requires --features docker-tui)
+    #[cfg(feature = "docker-tui")]
+    #[command(name = "docker-tui")]
+    DockerTui,
     /// List all available MCP tools grouped by category (no token or LLM required)
     Tools,
 }
@@ -138,6 +142,8 @@ impl Command {
             Self::Stargazers(_) => ToolFilter::Stargazers,
             Self::Users(_) => ToolFilter::Users,
             Self::Tools => unreachable!(),
+            #[cfg(feature = "docker-tui")]
+            Self::DockerTui => unreachable!(),
         }
     }
 
@@ -165,6 +171,8 @@ impl Command {
             | Self::Stargazers(a)
             | Self::Users(a) => a,
             Self::Tools => unreachable!(),
+            #[cfg(feature = "docker-tui")]
+            Self::DockerTui => unreachable!(),
         }
     }
 
@@ -179,6 +187,8 @@ impl Command {
             | Self::SecurityAdvisories(a) | Self::Search(a)
             | Self::Stargazers(a) | Self::Users(a) => a.tools.as_ref(),
             Self::Tools => None,
+            #[cfg(feature = "docker-tui")]
+            Self::DockerTui => None,
         }
     }
 
@@ -206,6 +216,8 @@ impl Command {
             | Self::Stargazers(a)
             | Self::Users(a) => a.list_tools,
             Self::Tools => false,
+            #[cfg(feature = "docker-tui")]
+            Self::DockerTui => false,
         }
     }
 }
@@ -223,6 +235,19 @@ async fn main() -> Result<()> {
 
     // Global --list-tools or `tools` subcommand → show all tools
     let is_tools_cmd = matches!(cli.command, Some(Command::Tools));
+    #[cfg(feature = "docker-tui")]
+    let is_docker_tui = matches!(cli.command, Some(Command::DockerTui));
+    #[cfg(not(feature = "docker-tui"))]
+    let is_docker_tui = false;
+
+    if is_docker_tui {
+        #[cfg(feature = "docker-tui")]
+        {
+            oxker::setup_tracing();
+            oxker::run().await;
+            return Ok(());
+        }
+    }
     if cli.list_tools || is_tools_cmd {
         return list_tools(&github_token, None).await;
     }
