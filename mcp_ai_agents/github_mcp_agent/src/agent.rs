@@ -24,7 +24,7 @@ impl ToolFilter {
         }
     }
 
-    fn matches(&self, name: &str) -> bool {
+    pub fn matches(&self, name: &str) -> bool {
         match self {
             Self::Issues        => name.contains("issue") || name.contains("sub_issue"),
             Self::PullRequests  => name.contains("pull_request")

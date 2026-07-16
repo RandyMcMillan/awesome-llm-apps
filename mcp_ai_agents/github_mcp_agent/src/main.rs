@@ -16,7 +16,7 @@ use openai::{
 #[derive(Parser)]
 #[command(name = "github-mcp-agent")]
 #[command(about = "🐙 GitHub MCP Agent — explore GitHub repos with natural language")]
-#[command(subcommand_required = true, arg_required_else_help = true)]
+#[command(arg_required_else_help = true)]
 struct Cli {
     /// GitHub Personal Access Token (or set GITHUB_TOKEN env var)
     #[arg(long, global = true)]
@@ -34,20 +34,28 @@ struct Cli {
     #[arg(long, global = true)]
     model: Option<String>,
 
+    /// List all available MCP tools grouped by category (no LLM required)
+    #[arg(long, global = true)]
+    list_tools: bool,
+
     #[command(subcommand)]
-    command: Command,
+    command: Option<Command>,
 }
 
 /// Shared args for all query subcommands
 #[derive(Args)]
 struct QueryArgs {
     /// Repository to analyze (format: owner/repo)
-    #[arg(short, long, default_value = "Shubhamsaboo/awesome-llm-apps")]
+    #[arg(short, long, default_value = "gnostr-org/gnostr")]
     repo: String,
 
     /// Natural language query
     #[arg(short, long)]
     query: Option<String>,
+
+    /// List tools available for this subcommand (no LLM required)
+    #[arg(long)]
+    list_tools: bool,
 }
 
 #[derive(Subcommand)]
@@ -81,8 +89,33 @@ async fn main() -> Result<()> {
 
     println!("🐙 GitHub MCP Agent");
 
-    if let Command::Tools = cli.command {
-        return list_tools(&github_token).await;
+    // Global --list-tools or `tools` subcommand → show all tools
+    let is_tools_cmd = matches!(cli.command, Some(Command::Tools));
+    if cli.list_tools || is_tools_cmd {
+        return list_tools(&github_token, None).await;
+    }
+
+    let Some(cmd) = cli.command else {
+        bail!("A subcommand is required. Use --help for usage.");
+    };
+
+    // Subcommand --list-tools → show filtered tools for that category
+    let sub_list = match &cmd {
+        Command::Issues(a) | Command::PullRequests(a)
+        | Command::Repository(a) | Command::Search(a) => a.list_tools,
+        _ => false,
+    };
+
+    let filter = match &cmd {
+        Command::Issues(_)        => ToolFilter::Issues,
+        Command::PullRequests(_)  => ToolFilter::PullRequests,
+        Command::Repository(_)    => ToolFilter::Repository,
+        Command::Search(_)        => ToolFilter::Search,
+        Command::Tools            => unreachable!(),
+    };
+
+    if sub_list {
+        return list_tools(&github_token, Some(&filter)).await;
     }
 
     if github_token.is_empty() {
@@ -94,12 +127,10 @@ async fn main() -> Result<()> {
     let model      = cli.model.or_else(|| env::var("LLM_MODEL").ok());
     let llm        = resolve_llm(openai_key, llm_url, model, &github_token).await?;
 
-    let (args, filter) = match cli.command {
-        Command::Issues(a)       => (a, ToolFilter::Issues),
-        Command::PullRequests(a) => (a, ToolFilter::PullRequests),
-        Command::Repository(a)   => (a, ToolFilter::Repository),
-        Command::Search(a)       => (a, ToolFilter::Search),
-        Command::Tools           => unreachable!(),
+    let args = match cmd {
+        Command::Issues(a) | Command::PullRequests(a)
+        | Command::Repository(a) | Command::Search(a) => a,
+        Command::Tools => unreachable!(),
     };
 
     let query = match args.query {
@@ -129,11 +160,40 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn list_tools(github_token: &str) -> Result<()> {
-    println!("🔌 Connecting to GitHub MCP server via Docker…");
-    let mut mcp = mcp::McpClient::new(github_token, "repos,issues,pull_requests").await?;
-    let tools = mcp.list_tools().await?;
+/// Print tools. If `filter` is Some, show only tools matching that category.
+async fn list_tools(github_token: &str, filter: Option<&ToolFilter>) -> Result<()> {
+    let toolsets = filter.map(|f| f.toolsets()).unwrap_or("repos,issues,pull_requests");
+    let label = filter.map(|f| match f {
+        ToolFilter::Issues       => "Issues",
+        ToolFilter::PullRequests => "Pull Requests",
+        ToolFilter::Repository   => "Repository",
+        ToolFilter::Search       => "Search",
+    });
 
+    println!("🔌 Connecting to GitHub MCP server via Docker…");
+    let mut mcp = mcp::McpClient::new(github_token, toolsets).await?;
+    let all_tools = mcp.list_tools().await?;
+
+    let tools: Vec<_> = match filter {
+        Some(f) => all_tools.iter().filter(|t| f.matches(&t.name)).collect(),
+        None    => all_tools.iter().collect(),
+    };
+
+    let sep = "─".repeat(72);
+
+    if let Some(cat) = label {
+        // Single-category listing
+        println!("\n📋 {} tools — {cat}\n{sep}", tools.len());
+        for t in &tools {
+            let raw = t.description.as_deref().unwrap_or("").lines().next().unwrap_or("");
+            let desc = if raw.len() > 57 { format!("{}…", &raw[..57]) } else { raw.to_string() };
+            println!("  {:<38} {}", t.name, desc);
+        }
+        println!("{sep}");
+        return Ok(());
+    }
+
+    // All-tools grouped listing
     let categories: &[(&str, &[&str])] = &[
         ("Issues",        &["issue", "sub_issue"]),
         ("Pull Requests", &["pull_request", "add_comment_to_pending", "add_reply"]),
@@ -146,10 +206,9 @@ async fn list_tools(github_token: &str) -> Result<()> {
     ];
 
     let mut assigned: std::collections::HashSet<&str> = Default::default();
-    let sep = "─".repeat(72);
     println!("\n📋 {} tools\n{sep}", tools.len());
 
-    for (label, prefixes) in categories {
+    for (cat_label, prefixes) in categories {
         let group: Vec<_> = tools
             .iter()
             .filter(|t| {
@@ -160,7 +219,7 @@ async fn list_tools(github_token: &str) -> Result<()> {
         if group.is_empty() { continue; }
         for t in &group { assigned.insert(t.name.as_str()); }
 
-        println!("  {label}");
+        println!("  {cat_label}");
         println!("  {}", "─".repeat(68));
         for t in group {
             let raw = t.description.as_deref().unwrap_or("").lines().next().unwrap_or("");
