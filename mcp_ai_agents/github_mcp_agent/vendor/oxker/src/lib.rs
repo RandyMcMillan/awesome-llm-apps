@@ -147,6 +147,16 @@ pub async fn run_embedded() {
     run_with_config(config).await;
 }
 
+/// Run the TUI with args forwarded from a parent binary (e.g. `["--help"]`, `["-d", "500"]`).
+/// Prepends a dummy program name so clap parses correctly.
+pub async fn run_with_args(args: &[String]) {
+    use clap::Parser;
+    let argv = std::iter::once("oxker").chain(args.iter().map(String::as_str));
+    let parsed = config::parse_args::Args::parse_from(argv);
+    let config = Config::from(&parsed);
+    run_with_config(config).await;
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 pub mod tests {
