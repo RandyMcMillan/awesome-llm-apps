@@ -35,7 +35,7 @@ struct Cli {
     model: Option<String>,
 
     /// List all available MCP tools grouped by category (no LLM required)
-    #[arg(long, global = true)]
+    #[arg(long)]
     list_tools: bool,
 
     #[command(subcommand)]

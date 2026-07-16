@@ -25,15 +25,19 @@ impl ToolFilter {
     }
 
     pub fn matches(&self, name: &str) -> bool {
+        // search_* tools are exclusively Search — exclude them from other categories
+        let is_search = name.starts_with("search_");
         match self {
-            Self::Issues        => name.contains("issue") || name.contains("sub_issue"),
-            Self::PullRequests  => name.contains("pull_request")
-                                || name.contains("pending_review")
-                                || name.contains("add_reply"),
-            Self::Repository    => !name.contains("issue")
-                                && !name.contains("pull_request")
-                                && !name.contains("search"),
-            Self::Search        => name.starts_with("search_"),
+            Self::Issues        => !is_search
+                                && (name.contains("issue") || name.contains("sub_issue")),
+            Self::PullRequests  => !is_search
+                                && (name.contains("pull_request")
+                                    || name.contains("pending_review")
+                                    || name.starts_with("add_reply")),
+            Self::Repository    => !is_search
+                                && !name.contains("issue")
+                                && !name.contains("pull_request"),
+            Self::Search        => is_search,
         }
     }
 }
