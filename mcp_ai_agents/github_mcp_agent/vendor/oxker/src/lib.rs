@@ -152,6 +152,7 @@ pub async fn run_embedded() {
 /// Pass `filter` to pre-seed the container name filter (hides unrelated containers).
 pub async fn run_with_args(args: &[String], filter: Option<String>) {
     use clap::Parser;
+    use crossterm::event::KeyCode;
     let argv = std::iter::once("oxker").chain(args.iter().map(String::as_str));
     let parsed = config::parse_args::Args::parse_from(argv);
     let mut config = Config::from(&parsed);
@@ -159,6 +160,8 @@ pub async fn run_with_args(args: &[String], filter: Option<String>) {
         config.gui = true;
     }
     config.initial_filter = filter;
+    // Bind 't' (primary) and 'T' (secondary) as exec-into-container keys
+    config.keymap.exec = (KeyCode::Char('t'), Some(KeyCode::Char('T')));
     run_with_config(config).await;
 }
 
