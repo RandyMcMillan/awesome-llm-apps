@@ -43,7 +43,7 @@ mod command {
     pub const SH: &str = "sh";
     pub const IT: &str = "-it";
     pub const RM: &str = "--rm";
-    /// Sidecar image used when the target container has no shell (e.g. distroless)
+    /// Shell layer for the sidecar — provides /bin/sh on top of the distroless target image
     pub const SIDECAR_IMAGE: &str = "alpine";
 }
 
@@ -219,20 +219,23 @@ impl ExecMode {
     }
 
     /// Spawn an alpine sidecar sharing the target container's network and PID namespaces.
+    /// The target's filesystem is reachable at `/proc/1/root/` (e.g. `/proc/1/root/server/github-mcp-server`).
     /// Used for distroless/scratch containers that have no shell of their own.
     fn exec_sidecar(container_name: &str) {
         let mut stdout = std::io::stdout();
         stdout.write_all(CURSOR_POS.as_bytes()).ok();
         stdout.flush().ok();
         let network_flag = format!("--network=container:{container_name}");
-        let pid_flag    = format!("--pid=container:{container_name}");
+        let pid_flag     = format!("--pid=container:{container_name}");
+        // Drop into alpine with a welcome hint about the shared PID namespace
+        let init_cmd = "echo '📦 Sidecar shell — target filesystem at /proc/1/root/' && export PATH=\"$PATH:/proc/1/root/server\" && sh";
         if let Ok(mut child) = std::process::Command::new(command::DOCKER)
             .args([
                 command::RUN, command::RM, command::IT,
                 &network_flag,
                 &pid_flag,
                 command::SIDECAR_IMAGE,
-                command::SH,
+                "sh", "-c", init_cmd,
             ])
             .stdin(std::process::Stdio::inherit())
             .stdout(std::process::Stdio::inherit())
