@@ -103,11 +103,64 @@ async fn list_tools(github_token: &str) -> Result<()> {
     println!("🔌 Connecting to GitHub MCP server via Docker…");
     let mut mcp = mcp::McpClient::new(github_token).await?;
     let tools = mcp.list_tools().await?;
-    println!("📋 {} tools available:\n", tools.len());
-    for t in &tools {
-        let desc = t.description.as_deref().unwrap_or("(no description)");
-        println!("  {:40} {}", t.name, desc);
+
+    // Group tools by category derived from their name prefix
+    let categories = [
+        ("Issues",        &["issue", "sub_issue", "list_issue"] as &[&str]),
+        ("Pull Requests", &["pull_request", "add_comment_to_pending", "add_reply"]),
+        ("Repository",    &["create_repo", "fork", "list_branch", "list_commit",
+                             "list_release", "list_tag", "list_repository",
+                             "get_commit", "get_file", "get_label", "get_latest",
+                             "get_release", "get_tag", "create_branch",
+                             "create_or_update", "delete_file", "push_files"]),
+        ("Search",        &["search_"]),
+    ];
+
+    let mut assigned: std::collections::HashSet<&str> = Default::default();
+    let sep = "─".repeat(72);
+
+    println!("\n📋 {} tools\n{sep}", tools.len());
+
+    for (label, prefixes) in &categories {
+        let group: Vec<_> = tools
+            .iter()
+            .filter(|t| {
+                !assigned.contains(t.name.as_str())
+                    && prefixes.iter().any(|p| t.name.contains(p))
+            })
+            .collect();
+
+        if group.is_empty() {
+            continue;
+        }
+        for t in &group {
+            assigned.insert(t.name.as_str());
+        }
+
+        println!("  {label}");
+        println!("  {}", "─".repeat(68));
+        for t in group {
+            let desc = t.description.as_deref().unwrap_or("").lines().next().unwrap_or("");
+            let desc = if desc.len() > 58 { format!("{}…", &desc[..57]) } else { desc.to_string() };
+            println!("  {:<38} {}", t.name, desc);
+        }
+        println!();
     }
+
+    // Anything not matched above
+    let rest: Vec<_> = tools.iter().filter(|t| !assigned.contains(t.name.as_str())).collect();
+    if !rest.is_empty() {
+        println!("  Other");
+        println!("  {}", "─".repeat(68));
+        for t in rest {
+            let desc = t.description.as_deref().unwrap_or("").lines().next().unwrap_or("");
+            let desc = if desc.len() > 58 { format!("{}…", &desc[..57]) } else { desc.to_string() };
+            println!("  {:<38} {}", t.name, desc);
+        }
+        println!();
+    }
+
+    println!("{sep}");
     Ok(())
 }
 
