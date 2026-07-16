@@ -5,8 +5,10 @@ use serde_json::{json, Value};
 
 pub const OPENAI_BASE_URL: &str = "https://api.openai.com/v1";
 pub const OLLAMA_BASE_URL: &str = "http://localhost:11434/v1";
+pub const GITHUB_MODELS_BASE_URL: &str = "https://models.inference.ai.azure.com";
 pub const OPENAI_DEFAULT_MODEL: &str = "gpt-4o-mini";
 pub const OLLAMA_DEFAULT_MODEL: &str = "llama3.2";
+pub const GITHUB_MODELS_DEFAULT_MODEL: &str = "gpt-4o-mini";
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Message {

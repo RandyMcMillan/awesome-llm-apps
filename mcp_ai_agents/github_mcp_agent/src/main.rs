@@ -1,4 +1,4 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result};
 use clap::Parser;
 use std::{env, io::Write};
 
@@ -7,7 +7,10 @@ mod docker;
 mod mcp;
 mod openai;
 
-use openai::{LlmClient, OLLAMA_BASE_URL, OLLAMA_DEFAULT_MODEL, OPENAI_BASE_URL, OPENAI_DEFAULT_MODEL};
+use openai::{
+    LlmClient, GITHUB_MODELS_BASE_URL, GITHUB_MODELS_DEFAULT_MODEL,
+    OLLAMA_BASE_URL, OLLAMA_DEFAULT_MODEL, OPENAI_BASE_URL, OPENAI_DEFAULT_MODEL,
+};
 
 #[derive(Parser)]
 #[command(name = "github-mcp-agent")]
@@ -67,7 +70,7 @@ async fn main() -> Result<()> {
     let llm_url    = cli.llm_url.or_else(|| env::var("LLM_BASE_URL").ok());
     let model      = cli.model.or_else(|| env::var("LLM_MODEL").ok());
 
-    let llm = resolve_llm(openai_key, llm_url, model).await?;
+    let llm = resolve_llm(openai_key, llm_url, model, &github_token).await?;
 
     let query = match cli.query {
         Some(q) => q,
@@ -112,11 +115,13 @@ async fn list_tools(github_token: &str) -> Result<()> {
 ///   1. Explicit --llm-url              → use as-is (key optional)
 ///   2. OPENAI_API_KEY / --openai-key   → OpenAI
 ///   3. Ollama reachable at localhost   → Ollama (no key needed)
-///   4. None of the above              → error with instructions
+///   4. GitHub token present            → GitHub Models (free, rate-limited)
+///   5. None of the above              → error with instructions
 async fn resolve_llm(
     api_key: Option<String>,
     base_url: Option<String>,
     model: Option<String>,
+    github_token: &str,
 ) -> Result<LlmClient> {
     if let Some(url) = base_url {
         let m = model.unwrap_or_else(|| OPENAI_DEFAULT_MODEL.into());
@@ -130,20 +135,20 @@ async fn resolve_llm(
         return Ok(LlmClient::new(OPENAI_BASE_URL, Some(key), m));
     }
 
-    // No key and no explicit URL — probe Ollama
-    let m = model.unwrap_or_else(|| OLLAMA_DEFAULT_MODEL.into());
-    let client = LlmClient::new(OLLAMA_BASE_URL, None, &m);
-    if client.probe().await {
-        println!("🦙 Using Ollama at {OLLAMA_BASE_URL} ({m})");
-        return Ok(client);
+    // No explicit key — probe Ollama first (local, free)
+    let ollama_model = model.clone().unwrap_or_else(|| OLLAMA_DEFAULT_MODEL.into());
+    let ollama = LlmClient::new(OLLAMA_BASE_URL, None, &ollama_model);
+    if ollama.probe().await {
+        println!("🦙 Using Ollama at {OLLAMA_BASE_URL} ({ollama_model})");
+        return Ok(ollama);
     }
 
-    bail!(
-        "No LLM backend found.\n\
-         Options:\n  \
-         • Set OPENAI_API_KEY (or --openai-key) to use OpenAI\n  \
-         • Start Ollama locally: https://ollama.com  then: ollama pull {m}\n  \
-         • Set LLM_BASE_URL (or --llm-url) for any OpenAI-compatible endpoint\n  \
-         • Use --list-tools to browse available MCP tools without an LLM"
-    );
+    // Fall back to GitHub Models — authenticated with the GitHub token already in hand
+    let m = model.unwrap_or_else(|| GITHUB_MODELS_DEFAULT_MODEL.into());
+    println!("🐙 Using GitHub Models ({m})");
+    Ok(LlmClient::new(
+        GITHUB_MODELS_BASE_URL,
+        Some(github_token.to_string()),
+        m,
+    ))
 }
