@@ -249,30 +249,32 @@ async fn main() -> Result<()> {
         if let Some(Command::DockerTui { args }) = cli.command {
             let is_help = args.iter().any(|a| a == "--help" || a == "-h");
             if is_help {
+                let sep = "─".repeat(68);
+                let cname = github_mcp_agent::docker::CONTAINER_NAME;
                 println!(
                     "\n\
                      docker-tui — GitHub MCP Agent wrapper for the oxker Docker TUI\n\
                      {sep}\n\
-                     Ensures the GitHub MCP server image is present, optionally starts a\n\
-                     named '{cname}' container, then launches the oxker TUI.\n\
+                     Ensures the GitHub MCP server image is present, optionally starts\n\
+                     a named '{cname}' container, then launches the oxker TUI.\n\
                      \n\
                      Usage:\n\
-                     \n\
                      \x20 github-mcp-agent [--github-token <TOKEN>] docker-tui [OXKER_OPTIONS]\n\
                      \n\
-                     Global flags (must come before docker-tui):\n\
-                     \x20 --github-token <TOKEN>   Start the '{cname}' container\n\
+                     Global flags (before docker-tui):\n\
+                     \x20 --github-token <TOKEN>   Start '{cname}' container\n\
                      \x20                          (or set GITHUB_TOKEN env var)\n\
                      \n\
                      Oxker options (forwarded verbatim):\n\
-                     {sep}",
-                    sep = "─".repeat(68),
-                    cname = github_mcp_agent::docker::CONTAINER_NAME,
+                     {sep}"
                 );
+                oxker::setup_tracing();
+                oxker::run_with_args(&args).await;
+                return Ok(());
             }
             println!("🔌 Connecting to GitHub MCP server via Docker…");
             let docker = github_mcp_agent::docker::ensure_ready().await?;
-            if !is_help && !github_token.is_empty() {
+            if !github_token.is_empty() {
                 github_mcp_agent::docker::start_mcp_server(&docker, &github_token).await?;
             }
             oxker::setup_tracing();
