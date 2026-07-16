@@ -140,6 +140,12 @@ pub async fn run() {
     run_with_config(config).await;
 }
 
+/// Run the TUI embedded inside another binary — uses default config, does NOT parse process args.
+pub async fn run_embedded() {
+    let config = Config::from(&config::parse_args::Args::default());
+    run_with_config(config).await;
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 pub mod tests {

@@ -10,7 +10,7 @@ mod keymap_parser;
 use crate::{ENV_KEY, ENV_VALUE};
 pub use {color_parser::AppColors, keymap_parser::Keymap};
 
-mod parse_args;
+pub mod parse_args;
 mod parse_config_file;
 
 #[derive(Debug, Clone)]

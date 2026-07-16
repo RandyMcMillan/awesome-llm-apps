@@ -244,7 +244,7 @@ async fn main() -> Result<()> {
         #[cfg(feature = "docker-tui")]
         {
             oxker::setup_tracing();
-            oxker::run().await;
+            oxker::run_embedded().await;
             return Ok(());
         }
     }
